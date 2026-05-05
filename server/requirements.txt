@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+python-multipart
+pandas
+numpy
+geopandas
+shapely
+pyogrio
+earthengine-api
+pyyaml
+scipy
+rasterio

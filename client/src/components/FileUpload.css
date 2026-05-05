@@ -1,0 +1,68 @@
+.upload-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+  max-width: 800px;
+  margin: 0 auto;
+  margin-top: 4rem;
+  border: 2px dashed rgba(16, 185, 129, 0.3);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.4);
+  transition: all var(--transition-normal);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-container::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(circle at center, var(--accent-glow) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+  pointer-events: none;
+}
+
+.upload-container:hover, .upload-container.drag-active {
+  border-color: var(--primary);
+  background: rgba(255, 255, 255, 0.8);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(16, 185, 129, 0.08), 0 0 0 1px rgba(16, 185, 129, 0.2);
+}
+
+.upload-container:hover::before, .upload-container.drag-active::before {
+  opacity: 1;
+}
+
+.upload-icon-wrapper {
+  background: rgba(16, 185, 129, 0.1);
+  padding: 1.5rem;
+  border-radius: 50%;
+  margin-bottom: 1.5rem;
+  color: var(--primary);
+  transition: transform var(--transition-normal);
+}
+
+.upload-container:hover .upload-icon-wrapper, .drag-active .upload-icon-wrapper {
+  transform: scale(1.1) translateY(-4px);
+}
+
+.upload-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.upload-subtitle {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  margin-bottom: 2rem;
+}
+
+.hidden-input {
+  display: none;
+}
