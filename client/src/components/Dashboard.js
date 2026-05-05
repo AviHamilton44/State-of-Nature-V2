@@ -3,34 +3,20 @@ import axios from 'axios';
 import * as Recharts from 'recharts';
 import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import * as Lucide from 'lucide-react';
 import {
-  Leaf, AlertTriangle, Activity, BarChart2, Map as MapIcon, Droplet, Wind, Sun,
-  ShieldAlert, Zap, Box, ChevronDown, ChevronUp, Info, PieChart as PieChartIcon,
-  Users
+  Leaf, Activity, BarChart2, Map as MapIcon, Droplet, Wind, Sun,
+  ShieldAlert, Zap, Box, ChevronDown, ChevronUp, Info, PieChart as PieChartIcon
 } from 'lucide-react';
 import './Dashboard.css';
 
 const {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer,
-  Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, PieChart, Pie, Legend,
-  LineChart, Line, RadialBarChart, RadialBar, Sector, AreaChart, Area
+  Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, PieChart, Pie,
+  LineChart, Line
 } = Recharts;
 
 const RADIAN = Math.PI / 180;
 
-const SCORE_COLORS = {
-  high: 'var(--color-score-high)',
-  mid: 'var(--color-score-mid)',
-  low: 'var(--color-score-low)'
-};
-
-const getScoreColor = (score) => {
-  if (score === null || score === undefined) return SCORE_COLORS.low;
-  if (score <= 2.5) return SCORE_COLORS.high; // Green for Very Low Concern
-  if (score <= 5.0) return SCORE_COLORS.mid;  // Orange for Moderate Concern
-  return SCORE_COLORS.low;                  // Red for High Concern
-};
 
 const getMetricIcon = (name) => {
   const n = name.toLowerCase();
@@ -274,13 +260,6 @@ export default function Dashboard({ data, geoJson, onReset }) {
     },
   ];
 
-  // Map for Pulse Wave (Living Ecosystem Graph)
-  const pulsePeaks = [
-    { name: 'Extent', score: (data["Extent"] || 0) * 2 },
-    { name: 'Condition', score: (data["Condition"] || 0) * 2 },
-    { name: 'Population', score: (data["Population"] || 0) * 2 },
-    { name: 'Extinction', score: (data["Extinction"] || 0) * 2 },
-  ];
 
 
   const p5 = metrics?.["Pillar-5: Pressure"] || {};
