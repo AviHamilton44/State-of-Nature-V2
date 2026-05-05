@@ -34,3 +34,6 @@ Thumbs.db
 # Build artifacts
 client/build/
 server/output/
+
+.vercel
+.env*.local
