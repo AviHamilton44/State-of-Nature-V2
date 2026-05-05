@@ -199,10 +199,7 @@ const getFeatureAreaKm2 = (feature) => {
 export default function Dashboard({ data, geoJson, onReset }) {
   const [mapType, setMapType] = useState('base');
   const [expandedGroup, setExpandedGroup] = useState(null);
-  const [sectors, setSectors] = useState([]);
-  const [selectedSector, setSelectedSector] = useState(null);
   const [bounds, setBounds] = useState(null);
-  const [hoveredBubble, setHoveredBubble] = useState(null);
   const [activePressure, setActivePressure] = useState('GHM');
 
   useEffect(() => {
@@ -223,27 +220,6 @@ export default function Dashboard({ data, geoJson, onReset }) {
     }
   }, [geoJson]);
 
-  useEffect(() => {
-    const fetchSectors = async () => {
-      try {
-        const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
-        const res = await axios.get(`${API_BASE_URL}/api/sector-son-matrix`);
-        // Filter to unique sectors for the dropdown (logic averages across biomes for benchmark)
-        const unique = [];
-        const seen = new Set();
-        res.data.forEach(item => {
-          if (!seen.has(item.sector)) {
-            seen.add(item.sector);
-            unique.push(item);
-          }
-        });
-        setSectors(unique);
-      } catch (err) {
-        console.error("Failed to load benchmarks", err);
-      }
-    };
-    fetchSectors();
-  }, []);
 
   if (!data) return null;
 
@@ -255,7 +231,6 @@ export default function Dashboard({ data, geoJson, onReset }) {
 
   const { metrics } = data;
   const sonValue = data["SoN Score"] || 0;
-  const threatValue = data["Pressure Score"] || 0;
 
   // Map dimensions for Radar chart
   const radarData = [
@@ -265,21 +240,6 @@ export default function Dashboard({ data, geoJson, onReset }) {
     { subject: 'Extinction', A: data["Extinction"] || 1, fullMark: 5 },
   ];
 
-  const barData = [
-    { name: 'Extent', score: (data["Extent"] || 0) * 2 },
-    { name: 'Condition', score: (data["Condition"] || 0) * 2 },
-    { name: 'Population', score: (data["Population"] || 0) * 2 },
-    { name: 'Extinction', score: (data["Extinction"] || 0) * 2 },
-  ];
-
-  const getSoNColor = (s) => {
-    if (s === null || s === undefined) return '#94a3b8';
-    if (s < 4) return '#10b981'; // Very Low
-    if (s < 5) return '#84cc16'; // Low
-    if (s < 7) return '#f59e0b'; // Moderate
-    if (s < 8) return '#f97316'; // High
-    return '#ef4444'; // Very High
-  };
 
   const stackedData = calculateDistribution(metrics || {}, data?.pillar_concerns);
 
@@ -322,22 +282,6 @@ export default function Dashboard({ data, geoJson, onReset }) {
     { name: 'Extinction', score: (data["Extinction"] || 0) * 2 },
   ];
 
-  const pulseData = [
-    { name: '', score: 0 },
-    { name: 'Extent', score: pulsePeaks[0].score, isPeak: true },
-    { name: ' ', score: 0.3 },
-    { name: 'Condition', score: pulsePeaks[1].score, isPeak: true },
-    { name: '  ', score: 0.3 },
-    { name: 'Population', score: pulsePeaks[2].score, isPeak: true },
-    { name: '   ', score: 0.3 },
-    { name: 'Extinction', score: pulsePeaks[3].score, isPeak: true },
-    { name: '    ', score: 0 },
-  ];
-
-  const avgPulseScore = pulsePeaks.reduce((acc, curr) => acc + curr.score, 0) / 4;
-  const pulseStatus = avgPulseScore <= 2 ? { label: "Stable", color: "#22c55e" } :
-    avgPulseScore <= 3.5 ? { label: "Moderate Stress", color: "#eab308" } :
-      { label: "Critical", color: "#ef4444" };
 
   const p5 = metrics?.["Pillar-5: Pressure"] || {};
   const pc5 = data?.pillar_concerns?.["Pillar-5: Pressure"] || {};
@@ -449,7 +393,6 @@ export default function Dashboard({ data, geoJson, onReset }) {
 
   const currentStatus = getGaugeStatus(sonValue);
 
-  const mainColor = getScoreColor(sonValue);
 
   // Helper component to handle map zooming
   function MapBoundsUpdater({ bounds }) {
