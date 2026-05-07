@@ -4,61 +4,15 @@ import { Compass } from 'lucide-react';
 import FileUpload from './components/FileUpload';
 import Dashboard from './components/Dashboard';
 import SectorMatrix from './components/SectorMatrix';
-import shp from 'shpjs';
 import darukaaLogo from './assets/Darukaa1.png';
 
 import './App.css';
 
 // Mock delays for better UX
-const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8001';
 
 // Minimal KML to GeoJSON parser
-const parseKML = (text) => {
-  try {
-    const parser = new DOMParser();
-    const xml = parser.parseFromString(text, 'text/xml');
-    const placemarks = xml.getElementsByTagName('Placemark');
-    const features = [];
-
-    for (const placemark of placemarks) {
-      const name = placemark.getElementsByTagName('name')[0]?.textContent || 'Untitled';
-
-      // Handle Polygons
-      const polygons = placemark.getElementsByTagName('Polygon');
-      for (const poly of polygons) {
-        const coordStrings = poly.getElementsByTagName('coordinates')[0]?.textContent.trim().split(/\s+/);
-        const coordinates = coordStrings.map(pair => pair.split(',').map(Number).slice(0, 2));
-        features.push({
-          type: 'Feature',
-          properties: { name },
-          geometry: { type: 'Polygon', coordinates: [coordinates] }
-        });
-      }
-
-      // Handle Points if no Polygons exist for this placemark
-      if (polygons.length === 0) {
-        const points = placemark.getElementsByTagName('Point');
-        for (const point of points) {
-          const coordString = point.getElementsByTagName('coordinates')[0]?.textContent.trim();
-          const coordinates = coordString.split(',').map(Number).slice(0, 2);
-          features.push({
-            type: 'Feature',
-            properties: { name },
-            geometry: { type: 'Point', coordinates }
-          });
-        }
-      }
-    }
-
-    if (features.length === 0) return null;
-    return features.length === 1 ? features[0] : { type: 'FeatureCollection', features };
-  } catch (err) {
-    console.error('Error parsing KML:', err);
-    return null;
-  }
-};
 
 function App() {
   const [appState, setAppState] = useState('idle'); // 'idle', 'uploading', 'analyzing', 'calculating', 'results'
