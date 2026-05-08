@@ -7,11 +7,48 @@ import math
 import geopandas as gpd
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+import logging
 
-# Add backend to path to import gee_client
-sys.path.append(os.path.join(os.getcwd(), "..", "backend"))
-from gee_client import init_gee, extract_metrics
-from sector_data import get_sector_son_matrix
+# Load environment variables
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger(__name__)
+
+# Add backend and current server dir to path
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(CURRENT_DIR)
+sys.path.append(os.path.join(PARENT_DIR, "backend"))
+sys.path.append(PARENT_DIR)
+
+try:
+    from backend.gee_client import init_gee, extract_metrics
+except ImportError:
+    logger.warning("Could not import backend.gee_client. GEE features will be disabled.")
+    init_gee = lambda: False
+    extract_metrics = lambda *args, **kwargs: {}
+
+try:
+    from server.sector_data import get_sector_son_matrix
+    from server.darukaa_reference.pipeline import Pipeline
+    from server.darukaa_reference.config import Config
+    from server.darukaa_reference.indicators import create_default_registry
+    from server.scoring import calculate_scorecard
+except ImportError:
+    # Fallback for local development
+    sys.path.append(CURRENT_DIR)
+    from sector_data import get_sector_son_matrix
+    from darukaa_reference.pipeline import Pipeline
+    from darukaa_reference.config import Config
+    from darukaa_reference.indicators import create_default_registry
+    from scoring import calculate_scorecard
 
 def sanitize_nan(data):
     """Recursively replace NaN values with None for JSON compliance."""
@@ -23,39 +60,59 @@ def sanitize_nan(data):
         return None if math.isnan(data) or math.isinf(data) else data
     return data
 
-import logging
-# Configure logging to show pipeline progress in console
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
-logger = logging.getLogger(__name__)
 
-from darukaa_reference.pipeline import Pipeline
-from darukaa_reference.config import Config
-from darukaa_reference.indicators import create_default_registry
-from scoring import calculate_scorecard
+app = FastAPI(title="State of Nature Dashboard API")
 
-from fastapi.middleware.cors import CORSMiddleware
+# Environment Variables
+PORT = int(os.getenv("PORT", 8001))
+DATABASE_URL = os.getenv("DATABASE_URL")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
-app = FastAPI(title="Darukaa Pipeline API")
+# CORS Configuration
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://state-of-nature-v2.vercel.app", # Replace with actual Vercel URL
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"], # Temporarily allowing all origins for testing as requested
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+@app.get("/")
+async def root():
+    return {"message": "State of Nature Dashboard API is running", "environment": ENVIRONMENT}
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "healthy",
+        "gee_initialized": GEE_INITIALIZED,
+        "database": "connected" if DATABASE_URL else "not_configured"
+    }
+
+GEE_INITIALIZED = False
+
 @app.on_event("startup")
 def startup_event():
-    success = init_gee()
-    if success:
-        logger.info("GEE initialized successfully via backend/gee_client")
-    else:
-        logger.error("GEE initialization failed via backend/gee_client")
+    global GEE_INITIALIZED
+    try:
+        logger.info("Starting up Backend...")
+        if DATABASE_URL:
+            logger.info(f"Database URL configured: {DATABASE_URL[:10]}...")
+        
+        success = init_gee()
+        if success:
+            GEE_INITIALIZED = True
+            logger.info("GEE initialized successfully.")
+        else:
+            logger.warning("GEE initialization skipped or failed.")
+    except Exception as e:
+        logger.error(f"Error during startup: {str(e)}")
 
 # Initialize Pipeline Registry
 REGISTRY = create_default_registry()
@@ -139,4 +196,5 @@ async def sector_son_matrix():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    logger.info(f"Starting server on port {PORT}...")
+    uvicorn.run(app, host="0.0.0.0", port=PORT)

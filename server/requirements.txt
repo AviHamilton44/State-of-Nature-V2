@@ -1,5 +1,6 @@
 fastapi
 uvicorn
+gunicorn
 python-multipart
 pandas
 numpy
@@ -10,3 +11,8 @@ earthengine-api
 pyyaml
 scipy
 rasterio
+sqlalchemy
+psycopg2-binary
+python-dotenv
+pydantic
+requests
