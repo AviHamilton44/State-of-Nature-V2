@@ -2,7 +2,14 @@
 
 To deploy the State of Nature backend on Render, follow these steps:
 
-## 1. Create a New Web Service
+## Option 1: Automatic Deployment (Blueprint)
+I have created a `render.yaml` file in the root directory. You can use this to deploy both the backend and database at once:
+1. Go to **Blueprints** in the Render Dashboard.
+2. Connect your repository.
+3. Render will automatically detect `render.yaml` and set everything up.
+
+## Option 2: Manual Deployment
+If you prefer to set it up manually:
 - Connect your GitHub repository.
 - Select the `main` branch.
 - Set the **Root Directory** to `./` (if your server folder is in the root).
