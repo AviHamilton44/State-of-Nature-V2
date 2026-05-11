@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Search, Filter, BarChart3 } from 'lucide-react';
 import './SectorMatrix.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8001';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://state-of-nature-v2.onrender.com';
 
 const BIOMES_DATA = [
   { name: "Tropical-subtropical forests", code: "T1" },

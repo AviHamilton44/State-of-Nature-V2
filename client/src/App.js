@@ -10,7 +10,7 @@ import './App.css';
 
 // Mock delays for better UX
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8001';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://state-of-nature-v2.onrender.com';
 
 // Minimal KML to GeoJSON parser
 
@@ -59,7 +59,7 @@ function App() {
 
     } catch (error) {
       console.error("Error processing file:", error);
-      alert("Analysis failed. Ensure the Pipeline API (port 8001) is running with GEE access.");
+      alert("Analysis failed. Please check your internet connection or ensure the backend service is active.");
       setAppState('idle');
     }
   };
