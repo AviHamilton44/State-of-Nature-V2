@@ -10,10 +10,27 @@ def init_gee():
     """Initializes Google Earth Engine using the service account key."""
     global _is_initialized
     
-    key_path = Path(__file__).parent / "gee-key.json"
-    if not key_path.exists():
-        print("gee-key.json not found. Earth Engine running in graceful fallback mode.")
+    # Define possible locations for the key file
+    possible_paths = [
+        Path("gee-key.json"),                      # Root directory (Render Secret File)
+        Path(__file__).parent / "gee-key.json",    # backend/ folder
+        Path(__file__).parent.parent / "gee-key.json", # Root from backend/
+        Path("server/gee-key.json")                # server/ folder
+    ]
+    
+    key_path = None
+    for p in possible_paths:
+        if p.exists():
+            key_path = p
+            break
+            
+    if not key_path:
+        print("CRITICAL: gee-key.json not found in any expected location.")
+        print(f"Checked paths: {[str(p) for p in possible_paths]}")
+        print("Earth Engine running in graceful fallback mode.")
         return False
+
+    print(f"Loading GEE credentials from: {key_path.absolute()}")
 
     try:
         project = 'gaurav-singh-007'
