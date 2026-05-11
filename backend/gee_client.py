@@ -30,21 +30,32 @@ def init_gee():
         print("Earth Engine running in graceful fallback mode.")
         return False
 
-    print(f"Loading GEE credentials from: {key_path.absolute()}")
-
+    print(f"[GEE INFO] Loading GEE credentials from: {key_path.absolute()}")
+    
     try:
-        project = 'gaurav-singh-007'
-        try:
-            ee.Initialize(project=project)
-        except Exception:
-            ee.Authenticate()
-            ee.Initialize(project=project)
+        # Load the key file content
+        with open(key_path, 'r') as f:
+            key_data = json.load(f)
             
-        print(f"Google Earth Engine Initialized Successfully! (Project: {project} via Default Credentials)")
+        service_account = key_data.get('client_email')
+        project = 'gaurav-singh-007'
+        
+        # Use Service Account Credentials for non-interactive auth
+        credentials = ee.ServiceAccountCredentials(service_account, str(key_path.absolute()))
+        ee.Initialize(credentials=credentials, project=project)
+            
+        print(f"[GEE SUCCESS] Google Earth Engine Initialized! Account: {service_account}")
         _is_initialized = True
         return True
     except Exception as e:
-        print(f"Earth Engine Initialization Error: {e}")
+        print(f"[GEE ERROR] Initialization failed: {str(e)}")
+        # Check if it's a JSON error or something else
+        try:
+            with open(key_path, 'r') as f:
+                content = f.read()
+                print(f"[GEE DEBUG] Key file size: {len(content)} bytes. Starts with: {content[:20]}...")
+        except:
+            pass
         return False
 
 
