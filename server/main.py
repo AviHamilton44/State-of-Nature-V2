@@ -138,6 +138,13 @@ def get_pipeline_config(year: int):
         min_reference_pixels=5,
         ndvi_year=year,
         lst_year=year,
+        raster_paths={
+            "iucn_mammals": "projects/darukaa-earth130226/assets/RedList_Mammals_Terrestrial",
+            "iucn_birds":   "projects/darukaa-earth130226/assets/RedList_Bird_IUCN_Category",
+            "kba_global":   "projects/darukaa-earth130226/assets/KBA_Global_POL_SEP25",
+            "pv_binary":    "projects/darukaa-earth-product/assets/biodiversity_India_PV_Binary_2025_Full_Mosaic",
+            "msa":          "projects/ee-jayankandir/assets/TerrestrialMSA_2015_World",
+        },
         output_dir="./output"
     )
 
