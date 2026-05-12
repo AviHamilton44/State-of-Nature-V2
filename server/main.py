@@ -146,14 +146,20 @@ async def run_pipeline(
     file: UploadFile = File(...),
     year: int = Form(...)
 ):
-    temp_file_path = f"temp_{file.filename}"
+    temp_file_path = os.path.join(CURRENT_DIR, f"temp_{file.filename}")
     
     try:
-        # Save uploaded file
+        # 0. Cleanup any old temp files
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+
+        # 1. Save uploaded file
         with open(temp_file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
-        # 1. Load Geometry for return
+        logger.info(f"File saved to {temp_file_path}")
+
+        # 2. Load Geometry
         gdf = gpd.read_file(temp_file_path)
         if gdf.empty:
             raise HTTPException(status_code=400, detail="Invalid or empty spatial file")
