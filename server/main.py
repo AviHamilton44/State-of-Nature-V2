@@ -127,6 +127,7 @@ def startup_event():
     global GEE_INITIALIZED
     try:
         logger.info("Starting up Backend...")
+        logger.info(f"Deployment: {ENVIRONMENT} | Gunicorn Workers: 1 | Timeout: 300s")
         if DATABASE_URL:
             logger.info(f"Database URL configured: {DATABASE_URL[:10]}...")
         
