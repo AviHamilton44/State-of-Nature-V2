@@ -91,29 +91,28 @@ def son_concern_label(score):
     return "Very High"
 
 def calculate_scorecard(scorecard_data, registry):
-    # Convert scorecard_data (list of dicts) to a cleaned lookup
     processed_rows = []
     for row in scorecard_data:
-        # Clean the row data
         clean_row = {}
         for k, v in row.items():
             if k in ["site_value", "tier1_intactness", "tier2_intactness"]:
                 if v is None: clean_row[k] = None
                 elif isinstance(v, (int, float)): clean_row[k] = float(v)
                 elif isinstance(v, str):
-                    try: clean_row[k] = float(v.replace("%", "").strip()) / 100.0 if "%" in v else float(v)
+                    try: 
+                        vs = v.replace("%", "").strip()
+                        clean_row[k] = float(vs) / 100.0 if "%" in v else float(vs)
                     except: clean_row[k] = None
                 else: clean_row[k] = None
             else: clean_row[k] = v
         
-        raw_name = clean_row.get("display_name") or clean_row.get("indicator") or ""
-        clean_row["_search_key"] = raw_name.lower().strip()
+        raw_name = str(clean_row.get("display_name") or clean_row.get("indicator") or "").strip()
+        clean_row["_search_key"] = raw_name.lower()
         import re
         clean_row["_search_clean"] = re.sub(r"^[0-9A-Z.\s]+", "", clean_row["_search_key"]).strip()
         processed_rows.append(clean_row)
 
     metric_concerns = {}
-    results_lookup = {}
     reg_specs = registry.all()
     
     for spec in reg_specs:
@@ -122,95 +121,69 @@ def calculate_scorecard(scorecard_data, registry):
         
         matched_row = None
         for row in processed_rows:
-            r_key = row["_search_key"]
-            r_clean = row["_search_clean"]
-            if s_slug == r_key or s_disp == r_key or s_slug == r_clean or s_disp == r_clean:
+            rk, rc = row["_search_key"], row["_search_clean"]
+            if s_slug == rk or s_disp == rk or s_slug == rc or s_disp == rc:
                 matched_row = row; break
-            if r_clean and (r_clean in s_disp or s_disp in r_clean):
+            if rc and (rc in s_disp or s_disp in rc):
                 matched_row = row; break
                 
         if not matched_row: continue
-        results_lookup[spec.name] = matched_row
 
         site_val = matched_row.get("site_value")
         t2 = matched_row.get("tier2_intactness")
         t1 = matched_row.get("tier1_intactness")
 
-        cn = None
-        protocol = "no ref"
-        intactness_used = None
+        cn, protocol, intactness_used = None, "no ref", None
 
         if spec.name in PROTOCOL_A_INDICATORS and site_val is not None:
-            cn = apply_protocol_a(spec.name, site_val)
-            protocol = "A"
+            cn, protocol = apply_protocol_a(spec.name, site_val), "A"
         elif t2 is not None:
-            cn = apply_protocol_b(t2)
-            protocol = "B"
-            intactness_used = t2
+            cn, protocol, intactness_used = apply_protocol_b(t2), "B", t2
         elif t1 is not None:
-            cn = apply_protocol_b(t1)
-            protocol = "C"
-            intactness_used = t1
+            cn, protocol, intactness_used = apply_protocol_b(t1), "C", t1
 
         if cn is not None:
             metric_concerns[spec.name] = {
-                "concern_numeric": cn,
-                "concern_label": concern_label(cn),
-                "protocol": protocol,
-                "site_value": site_val,
-                "intactness_used": intactness_used,
-                "display_name": spec.display_name,
-                "_spec": spec
+                "concern_numeric": cn, "concern_label": concern_label(cn),
+                "protocol": protocol, "site_value": site_val,
+                "intactness_used": intactness_used, "display_name": spec.display_name,
+                "pillar": spec.pillar
             }
 
     dim_scores = {}
     dim_metrics = {}
     for dim_num, indicators in DIM_MAP.items():
-        values = [mc["concern_numeric"] for n in indicators if (mc := metric_concerns.get(n)) and mc["concern_numeric"] is not None]
+        vals = [mc["concern_numeric"] for n in indicators if (mc := metric_concerns.get(n)) and mc["concern_numeric"] is not None]
         dim_metrics[dim_num] = [n for n in indicators if n in metric_concerns]
-        dim_scores[dim_num] = sum(values) / len(values) if values else None
+        dim_scores[dim_num] = sum(vals) / len(vals) if vals else None
 
     valid_dims = {d: s for d, s in dim_scores.items() if s is not None}
     n_valid = len(valid_dims)
     son_score = (sum(valid_dims.values()) - n_valid) / (n_valid * 4) * 10 if n_valid >= 1 else None
 
-    # Aggregation for Dashboard
-    pillar_metrics = {}
-    raw_pillar_metrics = {}
-    pillar_concerns = {}
-    
-    # Pre-populate with raw data to avoid "Coming soon"
-    for row in processed_rows:
-        p_num = row.get("pillar")
-        if p_num is None: continue
-        p_name = f"Pillar-{p_num}: {DIM_NAMES.get(p_num, 'Indicator')}"
-        if p_num == 5: p_name = "Pillar-5: Pressure"
-        
-        if p_name not in pillar_metrics:
-            pillar_metrics[p_name], raw_pillar_metrics[p_name], pillar_concerns[p_name] = {}, {}, {}
-            
-        disp = row.get("display_name", row.get("indicator", "Unknown"))
-        val = row.get("site_value")
-        pillar_metrics[p_name][disp] = val / 100.0 if (val is not None and val > 1.0 and p_num == 1) else val
-        raw_pillar_metrics[p_name][disp] = val
-        pillar_concerns[p_name][disp] = 1.0
+    # Aggregation for Frontend
+    pillar_metrics = {f"Pillar-{i}: {DIM_NAMES.get(i, 'Pressure' if i==5 else 'Indicator')}": {} for i in range(1, 6)}
+    raw_pillar_metrics = {k: {} for k in pillar_metrics}
+    pillar_concerns = {k: {} for k in pillar_metrics}
 
-    # Overlay registry-backed data
     for name, mc in metric_concerns.items():
-        spec = mc["_spec"]
-        p_name = f"Pillar-{spec.pillar}: {DIM_NAMES.get(spec.pillar, 'Indicator')}"
-        if spec.pillar == 5: p_name = "Pillar-5: Pressure"
+        p_num = mc["pillar"]
+        p_key = f"Pillar-{p_num}: {DIM_NAMES.get(p_num, 'Pressure' if p_num==5 else 'Indicator')}"
+        disp = mc["display_name"]
         
-        pillar_metrics[p_name][spec.display_name] = mc["intactness_used"] if mc["intactness_used"] is not None else mc["site_value"]
-        if name == "kba_overlap": pillar_metrics[p_name][spec.display_name] = mc["site_value"] / 100.0
+        # Dashboard wants normalized 0-1 for most, but raw for some
+        norm = mc["intactness_used"] if mc["intactness_used"] is not None else mc["site_value"]
+        if name == "kba_overlap": norm = mc["site_value"] / 100.0
+        if p_num == 5: norm = mc["site_value"]
         
-        raw_pillar_metrics[p_name][spec.display_name] = mc["site_value"]
-        pillar_concerns[p_name][spec.display_name] = mc["concern_numeric"]
+        pillar_metrics[p_key][disp] = norm
+        raw_pillar_metrics[p_key][disp] = mc["site_value"]
+        pillar_concerns[p_key][disp] = mc["concern_numeric"]
 
-    pressure_vals = [pillar_metrics.get("Pillar-5: Pressure", {}).get(n, 0) for n in ["Global Human Modification", "Human Disturbance Index"]]
-    p_light = pillar_metrics.get("Pillar-5: Pressure", {}).get("Light Pollution (VIIRS)", 0)
-    pressure_vals.append(p_light / 100.0 if p_light > 1 else p_light)
-    pressure_score = (sum(pressure_vals) / len(pressure_vals)) * 10 if pressure_vals else 0
+    # Calculate overall Pressure Score
+    p5 = pillar_metrics.get("Pillar-5: Pressure", {})
+    p_vals = [p5.get("Global Human Modification", 0), p5.get("Human Disturbance Index", 0), p5.get("Light Pollution (VIIRS)", 0) / 100.0]
+    pressure_score = (sum(p_vals) / 3) * 10
 
     return {
         "SoN Score": round(son_score, 1) if son_score is not None else None,
@@ -220,6 +193,5 @@ def calculate_scorecard(scorecard_data, registry):
         "Population": round(dim_scores.get(3), 2) if dim_scores.get(3) is not None else None,
         "Extinction": round(dim_scores.get(4), 2) if dim_scores.get(4) is not None else None,
         "Pressure Score": round(pressure_score, 2),
-        "metrics": pillar_metrics, "raw_metrics": raw_pillar_metrics, "pillar_concerns": pillar_concerns,
-        "debug": {"total_dim_sum": round(sum(valid_dims.values()), 3) if valid_dims else 0, "n_valid": n_valid}
+        "metrics": pillar_metrics, "raw_metrics": raw_pillar_metrics, "pillar_concerns": pillar_concerns
     }
