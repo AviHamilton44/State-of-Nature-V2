@@ -4,31 +4,36 @@ import pandas as pd
 # Protocol A: Published literature thresholds (applied to raw site value)
 PROTOCOL_A = {
     # ── Ecosystem Condition ──
-    "bii":  {"breaks": [0.20, 0.40, 0.60, 0.80], "scores": [5, 4, 3, 2, 1], "higher_is_better": True},
-    "flii": {"breaks": [2.0,  4.0,  6.0,  8.0],  "scores": [5, 4, 3, 2, 1], "higher_is_better": True},
-    "msa":  {"breaks": [0.20, 0.40, 0.60, 0.80], "scores": [5, 4, 3, 2, 1], "higher_is_better": True},
+    "bii":  {"breaks": [0.20, 0.40, 0.60, 0.80], "scores": [1, 2, 3, 4, 5], "higher_is_better": True},
+    "flii": {"breaks": [2.0,  4.0,  6.0,  8.0],  "scores": [1, 2, 3, 4, 5], "higher_is_better": True},
+    "msa":  {"breaks": [0.20, 0.40, 0.60, 0.80], "scores": [1, 2, 3, 4, 5], "higher_is_better": True},
+
+    # ── Ecosystem Extent ──
+    "natural_habitat":  {"breaks": [30, 50, 70, 85], "scores": [1, 2, 3, 4, 5], "higher_is_better": True},
+    "natural_landcover": {"breaks": [30, 50, 70, 85], "scores": [1, 2, 3, 4, 5], "higher_is_better": True},
+    "forest_loss_rate": {"breaks": [1.0, 3.0, 6.0, 9.0], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
 
     # ── Species Population Size ──
-    "flagship_habitat": {"breaks": [0.20, 0.40, 0.60, 0.80], "scores": [5, 4, 3, 2, 1], "higher_is_better": True},
+    "flagship_habitat": {"breaks": [0.20, 0.40, 0.60, 0.80], "scores": [1, 2, 3, 4, 5], "higher_is_better": True},
 
     # ── Species Extinction Risk ──
-    "ceri": {"breaks": [0.10, 0.20, 0.35, 0.50], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
-    "star_t": {"breaks": [1.0, 3.0, 6.0, 9.0], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
-    "kba_overlap": {"breaks": [1.0, 25.0, 75.0, 99.9], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
+    "ceri": {"breaks": [0.10, 0.20, 0.35, 0.50], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
+    "star_t": {"breaks": [1.0, 3.0, 6.0, 9.0], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
+    "kba_overlap": {"breaks": [1.0, 25.0, 75.0, 99.9], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
     
-    # ── Threats & Pressure ──
-    "lst_day": {"breaks": [32.0, 36.0, 40.0, 44.0], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
-    "lst_night": {"breaks": [22.0, 26.0, 30.0, 34.0], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
-    "ghm": {"breaks": [0.1, 0.3, 0.6, 0.9], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
-    "hdi": {"breaks": [0.5, 0.6, 0.7, 0.8], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
-    "light_pollution": {"breaks": [1.0, 5.0, 30.0, 100.0], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
+    # ── Threats & Pressure (Contextual, not in SoN score) ──
+    "lst_day": {"breaks": [32.0, 36.0, 40.0, 44.0], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
+    "lst_night": {"breaks": [22.0, 26.0, 30.0, 34.0], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
+    "ghm": {"breaks": [0.1, 0.3, 0.6, 0.9], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
+    "hdi": {"breaks": [0.5, 0.6, 0.7, 0.8], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
+    "light_pollution": {"breaks": [1.0, 5.0, 30.0, 100.0], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
 }
 
 PROTOCOL_A_INDICATORS = set(PROTOCOL_A.keys())
 
 # Protocol B v1.0 -- FIXED thresholds (applied to Tier 2 intactness %, or Tier 1 where T2 unavailable)
 PROTOCOL_B_BREAKS = [30, 50, 70, 85]
-PROTOCOL_B_SCORES = [5,  4,  3,  2, 1]
+PROTOCOL_B_SCORES = [1,  2,  3,  4, 5]
 
 # Protocol C: Tier 1 regional comparison
 PROTOCOL_C_INDICATORS = {"cpland", "endemic_richness", "threatened_richness"}
@@ -175,11 +180,30 @@ def calculate_scorecard(scorecard_data, registry):
 
     if n_valid >= 1:
         total     = sum(valid_dims.values())
+        # (Σ dim_scores - n_dims) / (n_dims * 4) * 10
+        # If all are 5 (best), total = 5*n, (5n - n) / 4n * 10 = 10 (Best)
+        # If all are 1 (worst), total = n, (n - n) / 4n * 10 = 0 (Worst)
         son_score = (total - n_valid) / (n_valid * 4) * 10
         partial   = n_valid < 4
     else:
         son_score = None
         partial   = True
+
+def son_concern_label(score):
+    if score is None: return "Insufficient data"
+    if score > 8: return "Very Low"
+    if score > 7: return "Low"
+    if score > 5: return "Moderate"
+    if score > 3: return "High"
+    return "Very High"
+
+def dim_label(score):
+    if score is None: return "—"
+    if score > 4: return "Very Low"
+    if score > 3: return "Low"
+    if score > 2: return "Moderate"
+    if score > 1: return "High"
+    return "Very High"
         
     # ── Final Schema Mapping for Frontend ───────────────────────────────────────────
     

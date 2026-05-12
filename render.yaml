@@ -3,7 +3,7 @@ services:
     name: state-of-nature-backend
     env: python
     buildCommand: pip install -r server/requirements.txt
-    startCommand: gunicorn -w 4 -k uvicorn.workers.UvicornWorker server.main:app
+    startCommand: gunicorn -c server/gunicorn_config.py server.main:app
     envVars:
       - key: PORT
         value: 8001
