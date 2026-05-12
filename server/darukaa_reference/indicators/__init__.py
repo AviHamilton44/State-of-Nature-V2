@@ -289,12 +289,10 @@ def _img_ndvi(c):
 
 def _img_hhi(c):
     import ee; y=c.ndvi_year
-    # Optimize: Use only last 6 months for stability to speed up calculation
-    ic=ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")\
-        .filterDate(f"{y}-01-01",f"{y}-06-30")\
-        .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE",15))\
-        .map(lambda i: i.updateMask(i.select('SCL').eq(4)).normalizedDifference(["B8","B4"]).rename("NDVI"))
-    
+    def m(img):
+        scl=img.select("SCL"); g=scl.eq(2).Or(scl.eq(4)).Or(scl.eq(5)).Or(scl.eq(6)).Or(scl.eq(7))
+        return img.updateMask(g).divide(10000)
+    ic=ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED").filterDate(f"{y}-01-01",f"{y}-12-31").filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE",c.ndvi_cloud_threshold)).map(m).map(lambda i:i.normalizedDifference(["B8","B4"]).rename("NDVI"))
     z5=ic.reduce(ee.Reducer.percentile([5])).rename("p5")
     sig=ic.reduce(ee.Reducer.stdDev()).rename("sd")
     cnt=ic.count().rename("n")
@@ -482,7 +480,7 @@ def _img_cpland_binary(c):
 # ═══════════════════════════════════════════════════════════════════════
 
 # Dim 1
-def extract_natural_habitat(g,c): return _reduce(_img_natural_habitat(c),g,30)
+def extract_natural_habitat(g,c): return _reduce(_img_natural_habitat(c),g,10)
 def extract_natural_landcover(g,c): return _reduce(_img_natural_landcover(c),g,500)
 
 def extract_cpland(g,c):
@@ -518,11 +516,11 @@ def extract_kba_overlap(g,c):
     except Exception as e: logger.warning(f"KBA: {e}"); return {"value":None,"pixels":None}
 
 # Dim 2
-def extract_ndvi(g,c): return _reduce(_img_ndvi(c),g,30)
+def extract_ndvi(g,c): return _reduce(_img_ndvi(c),g,10)
 
 def extract_habitat_health(g,c):
     img=_img_hhi(c)
-    return _reduce(img,g,30) if img else {"value":None,"pixels":None}
+    return _reduce(img,g,10) if img else {"value":None,"pixels":None}
 
 def extract_flii(g,c):
     img=_img_flii(c)
@@ -723,6 +721,6 @@ def extract_star_t(g,c):
 # Threats
 def extract_ghm(g,c): return _reduce(_img_ghm(c),g,1000)
 def extract_light_pollution(g,c): return _reduce(_img_viirs(c),g,500)
-def extract_hdi(g,c): return _reduce(_img_hdi(c),g,30)
+def extract_hdi(g,c): return _reduce(_img_hdi(c),g,10)
 def extract_lst_day(g,c): return _reduce(_img_lst_day(c),g,1000)
 def extract_lst_night(g,c): return _reduce(_img_lst_night(c),g,1000)
