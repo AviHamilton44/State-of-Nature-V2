@@ -129,13 +129,29 @@ class SiteLoader:
 
     def _load_kml(self, path: Path) -> gpd.GeoDataFrame:
         """Load a KML file, trying multiple drivers."""
+        logger.info(f"Attempting to read KML: {path}")
         try:
-            return gpd.read_file(path, driver="KML")
-        except Exception:
+            # Try KML driver (requires libkml/fiona)
+            gdf = gpd.read_file(path, driver="KML")
+            logger.info("Successfully read KML using KML driver")
+            return gdf
+        except Exception as e1:
+            logger.warning(f"KML driver failed: {e1}. Trying LIBKML...")
             try:
-                return gpd.read_file(path, driver="LIBKML")
-            except Exception as e:
-                raise IOError(f"Failed to read KML file {path}: {e}")
+                # Try LIBKML driver
+                gdf = gpd.read_file(path, driver="LIBKML")
+                logger.info("Successfully read KML using LIBKML driver")
+                return gdf
+            except Exception as e2:
+                logger.warning(f"LIBKML driver failed: {e2}. Trying default read...")
+                try:
+                    # Try default read (fiona/pyogrio auto-detect)
+                    gdf = gpd.read_file(path)
+                    logger.info("Successfully read KML using default driver")
+                    return gdf
+                except Exception as e3:
+                    logger.error(f"All KML drivers failed. {e3}")
+                    raise IOError(f"Failed to read KML file {path}. Errors: [KML: {e1}, LIBKML: {e2}, Default: {e3}]")
 
     def _load_kmz(self, path: Path) -> gpd.GeoDataFrame:
         """Extract KML from KMZ archive and load."""

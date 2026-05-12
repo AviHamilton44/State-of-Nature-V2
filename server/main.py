@@ -60,6 +60,33 @@ def sanitize_nan(data):
         return None if math.isnan(data) or math.isinf(data) else data
     return data
 
+def optimize_kml(input_path: str, output_path: str):
+    """
+    Ensures KML is well-formed XML, removes BOM, and strips Z coordinates.
+    """
+    try:
+        with open(input_path, 'rb') as f:
+            content = f.read()
+            
+        # Remove BOM if present
+        if content.startswith(b'\xef\xbb\xbf'):
+            content = content[3:]
+            
+        text = content.decode('utf-8', errors='ignore').strip()
+        
+        # Basic XML check/fix
+        if not text.startswith('<?xml'):
+            text = '<?xml version="1.0" encoding="UTF-8"?>\n' + text
+            
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(text)
+            
+        logger.info(f"KML optimized and saved to {output_path}")
+        return True
+    except Exception as e:
+        logger.error(f"KML optimization failed: {e}")
+        return False
+
 
 app = FastAPI(title="State of Nature Dashboard API")
 
@@ -157,36 +184,48 @@ async def run_pipeline(
         with open(temp_file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
-        logger.info(f"File saved to {temp_file_path}")
+        file_size = os.path.getsize(temp_file_path)
+        logger.info(f"File saved to {temp_file_path} ({file_size} bytes)")
 
-        # 2. Load and Simplify Geometry
-        gdf = gpd.read_file(temp_file_path)
+        # Debug: Check first 500 chars
+        with open(temp_file_path, 'rb') as f:
+            head = f.read(500)
+            logger.info(f"File head (hex): {head.hex()[:100]}...")
+            logger.info(f"File head (text): {head.decode('utf-8', errors='ignore')}")
+
+        # 2. Optimize KML if needed
+        final_kml_path = temp_file_path
+        if file.filename.lower().endswith('.kml'):
+            opt_path = os.path.join(CURRENT_DIR, f"opt_{file.filename}")
+            if optimize_kml(temp_file_path, opt_path):
+                final_kml_path = opt_path
+
+        # 3. Load Geometry
+        try:
+            gdf = gpd.read_file(final_kml_path)
+        except Exception as e:
+            logger.warning(f"Primary KML parse failed: {e}. Trying fallback...")
+            # If optimized failed, try original
+            if final_kml_path != temp_file_path:
+                gdf = gpd.read_file(temp_file_path)
+            else:
+                raise e
+
         if gdf.empty:
             raise HTTPException(status_code=400, detail="Invalid or empty spatial file")
-            
+        
         if gdf.crs and gdf.crs.to_epsg() != 4326:
             gdf = gdf.to_crs(epsg=4326)
-
-        # Simplify geometry to speed up GEE (~10m resolution)
-        gdf['geometry'] = gdf['geometry'].simplify(0.0001, preserve_topology=True)
+            
+        from shapely.geometry import mapping
+        geometry = mapping(gdf.geometry.iloc[0])
         
-        # SAVE SIMPLIFIED FILE to disk so the pipeline uses it!
-        optimized_path = os.path.join(CURRENT_DIR, f"opt_{file.filename}")
-        gdf.to_file(optimized_path, driver='GeoJSON')
-        
-        logger.info(f"Optimized file saved to {optimized_path}")
-        
-        # 3. Configure and Run Pipeline
-        logger.info(f"RUNNING: Darukaa Pipeline (Parallel) for {file.filename}...")
+        # 4. Configure and Run Pipeline
+        logger.info(f"RUNNING: Darukaa Pipeline for {file.filename} (Year: {year})...")
         config = get_pipeline_config(year)
         pipeline = Pipeline(config, REGISTRY)
         
-        # Pass the OPTIMIZED path
-        report = pipeline.run(optimized_path)
-        
-        # Cleanup optimized file
-        if os.path.exists(optimized_path):
-            os.remove(optimized_path)
+        report = pipeline.run(final_kml_path)
         
         # 3. Calculate Scorecard using updated scoring logic
         scorecard = report.get("scorecard", [])
