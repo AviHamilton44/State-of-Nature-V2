@@ -91,45 +91,58 @@ def son_concern_label(score):
     return "Very High"
 
 def calculate_scorecard(scorecard_data, registry):
-    df = pd.DataFrame(scorecard_data)
-    results_lookup = {}
-    
-    # 1. Improved Fuzzy Matcher
-    reg_specs = registry.all()
-    for _, row in df.iterrows():
-        raw_name = str(row.get("indicator") or row.get("indicator_name") or row.get("name") or "").strip().lower()
-        raw_display = str(row.get("display_name") or "").strip().lower()
+    # Convert scorecard_data (list of dicts) to a cleaned lookup
+    processed_rows = []
+    for row in scorecard_data:
+        # Clean the row data
+        clean_row = {}
+        for k, v in row.items():
+            if isinstance(v, str) and "%" in v:
+                try: clean_row[k] = float(v.replace("%", "").strip()) / 100.0
+                except: clean_row[k] = v
+            else:
+                clean_row[k] = v
         
-        matched_slug = None
-        for spec in reg_specs:
-            s_slug = spec.name.lower()
-            s_disp = spec.display_name.lower()
-            
-            # Direct match
-            if raw_name in [s_slug, s_disp] or raw_display in [s_slug, s_disp]:
-                matched_slug = spec.name; break
-            # Partial match (e.g. "HHI" in "Habitat Health Index (HHI)")
-            if raw_name and (raw_name in s_disp or s_disp in raw_name):
-                matched_slug = spec.name; break
+        # Determine indicator identity
+        raw_name = str(clean_row.get("indicator") or clean_row.get("indicator_name") or clean_row.get("name") or "").strip().lower()
+        raw_display = str(clean_row.get("display_name") or "").strip().lower()
         
-        lookup_key = matched_slug or raw_name or raw_display
-        if lookup_key:
-            results_lookup[lookup_key] = row.to_dict()
+        # Remove leading numbers/dots (e.g., "1. Natural..." -> "natural...")
+        import re
+        raw_name = re.sub(r"^[0-9.\s]+", "", raw_name)
+        raw_display = re.sub(r"^[0-9.\s]+", "", raw_display)
+        
+        clean_row["_search_key"] = raw_name
+        clean_row["_search_display"] = raw_display
+        processed_rows.append(clean_row)
 
-    # 2. Score Metrics
     metric_concerns = {}
+    results_lookup = {}
+    reg_specs = registry.all()
+    
     for spec in reg_specs:
-        name = spec.name
-        row = results_lookup.get(name)
-        if not row:
-            # Try matching by display name
-            row = results_lookup.get(spec.display_name.lower())
+        s_slug = spec.name.lower()
+        s_disp = spec.display_name.lower()
         
-        if not row: continue
+        # Find best matching row
+        matched_row = None
+        for row in processed_rows:
+            r_key = row["_search_key"]
+            r_disp = row["_search_display"]
+            
+            if s_slug == r_key or s_disp == r_key or s_slug == r_disp or s_disp == r_disp:
+                matched_row = row; break
+            if r_key and (r_key in s_disp or s_disp in r_key):
+                matched_row = row; break
+                
+        if not matched_row: continue
+        
+        # Add to lookup for pressure metrics
+        results_lookup[spec.name] = matched_row
 
-        site_val = row.get("site_value")
-        t2 = row.get("tier2_intactness")
-        t1 = row.get("tier1_intactness")
+        site_val = matched_row.get("site_value")
+        t2 = matched_row.get("tier2_intactness")
+        t1 = matched_row.get("tier1_intactness")
 
         if not _is_valid(site_val): site_val = None
         if not _is_valid(t2): t2 = None
@@ -139,8 +152,8 @@ def calculate_scorecard(scorecard_data, registry):
         protocol = "no ref"
         intactness_used = None
 
-        if name in PROTOCOL_A_INDICATORS and site_val is not None:
-            cn = apply_protocol_a(name, site_val)
+        if spec.name in PROTOCOL_A_INDICATORS and site_val is not None:
+            cn = apply_protocol_a(spec.name, site_val)
             protocol = "A"
         elif t2 is not None:
             cn = apply_protocol_b(t2)
@@ -152,7 +165,7 @@ def calculate_scorecard(scorecard_data, registry):
             intactness_used = t1
 
         if cn is not None:
-            metric_concerns[name] = {
+            metric_concerns[spec.name] = {
                 "concern_numeric": cn,
                 "concern_label": concern_label(cn),
                 "protocol": protocol,
@@ -161,7 +174,6 @@ def calculate_scorecard(scorecard_data, registry):
                 "display_name": spec.display_name
             }
 
-    # 3. Aggregate Dimensions
     dim_scores = {}
     dim_metrics = {}
     for dim_num, indicators in DIM_MAP.items():
@@ -175,7 +187,7 @@ def calculate_scorecard(scorecard_data, registry):
         dim_metrics[dim_num] = populated
         dim_scores[dim_num] = sum(values) / len(values) if values else None
 
-    # 4. Final SoN Calculation
+    # Final SoN Calculation
     valid_dims = {d: s for d, s in dim_scores.items() if s is not None}
     n_valid = len(valid_dims)
     
@@ -362,6 +374,8 @@ def calculate_scorecard(scorecard_data, registry):
         "debug": {
             "total_dim_sum": round(total, 3),
             "dim_counts": {str(k): len(v) for k, v in dim_metrics.items()},
-            "dim_indicators": {str(k): v for k, v in dim_metrics.items()}
+            "dim_indicators": {str(k): v for k, v in dim_metrics.items()},
+            "raw_scorecard_count": len(scorecard_data),
+            "raw_scorecard_indicators": [r.get("indicator") for r in scorecard_data]
         }
     }
