@@ -45,8 +45,8 @@ THREATS = ["ghm", "light_pollution", "hdi", "lst_day", "lst_night"]
 DIM_NAMES = {
     1: "Ecosystem Extent",
     2: "Ecosystem Condition",
-    3: "Species Population Size",
-    4: "Species Extinction Risk",
+    3: "Population",
+    4: "Extinction Risk",
 }
 
 def _is_valid(v):
@@ -176,13 +176,34 @@ def calculate_scorecard(scorecard_data, registry):
         if name == "kba_overlap": norm = mc["site_value"] / 100.0
         if p_num == 5: norm = mc["site_value"]
         
-        pillar_metrics[p_key][disp] = norm
-        raw_pillar_metrics[p_key][disp] = mc["site_value"]
-        pillar_concerns[p_key][disp] = mc["concern_numeric"]
+        # Specialized keys for Dashboard widgets
+        final_disp = disp
+        if name == "ghm": final_disp = "GHM"
+        elif name == "hdi": final_disp = "HDI"
+        elif name == "light_pollution": final_disp = "Light Pollution"
+        elif name == "ndvi": final_disp = "NDVI"
+        elif name == "habitat_health": final_disp = "Habitat Health Index"
+        elif name == "flii": final_disp = "FLII"
+        elif name == "eii": final_disp = "EII Overall"
+        elif name == "bii": final_disp = "BII"
+        elif name == "natural_habitat": final_disp = "Natural Habitat Extent"
+        elif name == "natural_landcover": final_disp = "Natural Land Cover %"
+        elif name == "forest_loss_rate": final_disp = "Habitat Loss Rate"
+        elif name == "cpland": final_disp = "Connectivity (CPLAND)"
+        elif name == "kba_overlap": final_disp = "KBA Overlap"
+        elif name == "endemic_richness": final_disp = "Endemic / Small Range"
+        elif name == "flagship_habitat": final_disp = "Habitat Viability Index"
+        elif name == "threatened_richness": final_disp = "Threatened Species"
+        elif name == "ceri": final_disp = "CERI"
+        elif name == "star_t": final_disp = "STAR_T"
+        
+        pillar_metrics[p_key][final_disp] = norm
+        raw_pillar_metrics[p_key][final_disp] = mc["site_value"]
+        pillar_concerns[p_key][final_disp] = mc["concern_numeric"]
 
-    # Calculate overall Pressure Score
+    # Calculate overall Pressure Score using aligned keys
     p5 = pillar_metrics.get("Pillar-5: Pressure", {})
-    p_vals = [p5.get("Global Human Modification", 0), p5.get("Human Disturbance Index", 0), p5.get("Light Pollution (VIIRS)", 0) / 100.0]
+    p_vals = [p5.get("GHM", 0), p5.get("HDI", 0), (p5.get("Light Pollution", 0) / 100.0 if p5.get("Light Pollution", 0) > 1 else p5.get("Light Pollution", 0))]
     pressure_score = (sum(p_vals) / 3) * 10
 
     return {
