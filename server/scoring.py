@@ -93,77 +93,98 @@ def son_concern_label(score):
 def calculate_scorecard(scorecard_data, registry):
     df = pd.DataFrame(scorecard_data)
     results_lookup = {}
+    
+    # 1. Improved Fuzzy Matcher
+    reg_specs = registry.all()
     for _, row in df.iterrows():
-        name = (row.get("indicator") or row.get("indicator_name") or row.get("name") or "").strip().lower()
-        display_name = (row.get("display_name") or "").strip().lower()
-        slug = None
-        for spec in registry.all():
-            s_name = spec.name.lower()
-            s_display = spec.display_name.lower()
-            if (name and s_name == name) or (display_name and s_display == display_name) or (name and s_display == name):
-                slug = spec.name; break
-        lookup_key = slug or name or display_name
+        raw_name = str(row.get("indicator") or row.get("indicator_name") or row.get("name") or "").strip().lower()
+        raw_display = str(row.get("display_name") or "").strip().lower()
+        
+        matched_slug = None
+        for spec in reg_specs:
+            s_slug = spec.name.lower()
+            s_disp = spec.display_name.lower()
+            
+            # Direct match
+            if raw_name in [s_slug, s_disp] or raw_display in [s_slug, s_disp]:
+                matched_slug = spec.name; break
+            # Partial match (e.g. "HHI" in "Habitat Health Index (HHI)")
+            if raw_name and (raw_name in s_disp or s_disp in raw_name):
+                matched_slug = spec.name; break
+        
+        lookup_key = matched_slug or raw_name or raw_display
         if lookup_key:
             results_lookup[lookup_key] = row.to_dict()
+
+    # 2. Score Metrics
     metric_concerns = {}
-    for name, row in results_lookup.items():
+    for spec in reg_specs:
+        name = spec.name
+        row = results_lookup.get(name)
+        if not row:
+            # Try matching by display name
+            row = results_lookup.get(spec.display_name.lower())
+        
+        if not row: continue
+
         site_val = row.get("site_value")
-        t2       = row.get("tier2_intactness")
-        t1       = row.get("tier1_intactness")
+        t2 = row.get("tier2_intactness")
+        t1 = row.get("tier1_intactness")
+
         if not _is_valid(site_val): site_val = None
-        if not _is_valid(t2):       t2 = None
-        if not _is_valid(t1):       t1 = None
+        if not _is_valid(t2): t2 = None
+        if not _is_valid(t1): t1 = None
+
+        cn = None
+        protocol = "no ref"
+        intactness_used = None
+
         if name in PROTOCOL_A_INDICATORS and site_val is not None:
             cn = apply_protocol_a(name, site_val)
-            protocol = "A (published absolute threshold)"
-            intactness_used = None
-            t_ref = None
+            protocol = "A"
         elif t2 is not None:
             cn = apply_protocol_b(t2)
-            protocol = "B v1.0 (Tier 2 intactness)"
+            protocol = "B"
             intactness_used = t2
-            t_ref = row.get("tier2_reference")
         elif t1 is not None:
             cn = apply_protocol_b(t1)
-            if name in PROTOCOL_C_INDICATORS:
-                protocol = "C (Tier 1 regional — designed ref for this indicator)"
-            else:
-                protocol = "B v1.0 (Tier 1 fallback — T2 unavailable)"
+            protocol = "C"
             intactness_used = t1
-            t_ref = row.get("tier1_reference")
-        else:
-            cn = None
-            protocol = "— (no reference computable)"
-            intactness_used = None
-            t_ref = None
-        metric_concerns[name] = {
-            "concern_numeric":  cn,
-            "concern_label":    concern_label(cn),
-            "protocol":         protocol,
-            "intactness_used":  intactness_used,
-            "site_value":       site_val,
-            "display_name":     row.get("display_name", name),
-        }
-    dim_scores   = {}
-    dim_populated = {}
+
+        if cn is not None:
+            metric_concerns[name] = {
+                "concern_numeric": cn,
+                "concern_label": concern_label(cn),
+                "protocol": protocol,
+                "site_value": site_val,
+                "intactness_used": intactness_used,
+                "display_name": spec.display_name
+            }
+
+    # 3. Aggregate Dimensions
+    dim_scores = {}
+    dim_counts = {}
     for dim_num, indicators in DIM_MAP.items():
-        values, populated_names = [], []
+        values = []
         for name in indicators:
             mc = metric_concerns.get(name)
             if mc and mc["concern_numeric"] is not None:
                 values.append(mc["concern_numeric"])
-                populated_names.append(name)
-        dim_populated[dim_num] = populated_names
+        dim_counts[dim_num] = len(values)
         dim_scores[dim_num] = sum(values) / len(values) if values else None
-    valid_dims = {str(d): s for d, s in dim_scores.items() if s is not None}
-    n_valid    = len(valid_dims)
+
+    # 4. Final SoN Calculation
+    valid_dims = {d: s for d, s in dim_scores.items() if s is not None}
+    n_valid = len(valid_dims)
+    
     if n_valid >= 1:
-        total     = sum(valid_dims.values())
+        total = sum(valid_dims.values())
         son_score = (total - n_valid) / (n_valid * 4) * 10
-        partial   = n_valid < 4
+        partial = n_valid < 4
     else:
         son_score = None
-        partial   = True
+        total = 0
+        partial = True
     pillar_metrics = {
         "Pillar-1: Ecosystem Extent": {},
         "Pillar-2: Ecosystem Condition": {},
