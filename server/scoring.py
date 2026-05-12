@@ -373,9 +373,10 @@ def calculate_scorecard(scorecard_data, registry):
         "metric_concerns": metric_concerns,
         "debug": {
             "total_dim_sum": round(total, 3),
-            "dim_counts": {str(k): len(v) for k, v in dim_metrics.items()},
-            "dim_indicators": {str(k): v for k, v in dim_metrics.items()},
-            "raw_scorecard_count": len(scorecard_data),
-            "raw_scorecard_indicators": [r.get("indicator") for r in scorecard_data]
+            "n_valid_dimensions": n_valid,
+            "dim_metrics_count": {str(k): len(v) for k, v in dim_metrics.items()},
+            "matched_indicators": list(metric_concerns.keys()),
+            "missing_indicators": [s.name for s in reg_specs if s.name not in metric_concerns],
+            "raw_scorecard_size": len(scorecard_data)
         }
     }
