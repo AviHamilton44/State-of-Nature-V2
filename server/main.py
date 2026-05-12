@@ -64,7 +64,7 @@ def sanitize_nan(data):
 app = FastAPI(title="State of Nature Dashboard API")
 
 # Environment Variables
-PORT = int(os.getenv("PORT", 8001))
+PORT = int(os.getenv("PORT", 8000))
 DATABASE_URL = os.getenv("DATABASE_URL")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
