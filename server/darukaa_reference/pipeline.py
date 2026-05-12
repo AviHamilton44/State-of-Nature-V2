@@ -144,40 +144,30 @@ class Pipeline:
                 except Exception as e:
                     logger.warning(f"Could not get ecoregion geometry: {e}")
 
-            for spec in indicators:
-                logger.info(f"  Computing: {spec.display_name}...")
-
-                # Compute references
-                ref_result = self.reference.compute(
-                    indicator_spec=spec,
-                    site_geometry=site_geom,
-                    site_id=site_id,
-                    eco_id=eco_id,
-                    eco_geometry=eco_geom,
-                )
-                all_ref_results.append(ref_result)
-
-                # Statistical comparison
-                comp = self.stats.compare(ref_result)
-                all_comparisons.append(comp)
-
-                # Log summary
-                if comp.tier2_intactness is not None:
-                    logger.info(
-                        f"    → site={comp.site_value:.4f}, "
-                        f"T2_ref={comp.tier2_reference:.4f}, "
-                        f"intactness={comp.tier2_intactness:.1%}"
+            def process_indicator(spec):
+                try:
+                    self.reference._ensure_gee()
+                    ref_result = self.reference.compute(
+                        indicator_spec=spec,
+                        site_geometry=site_geom,
+                        site_id=site_id,
+                        eco_id=eco_id,
+                        eco_geometry=eco_geom,
                     )
-                elif comp.tier1_intactness is not None:
-                    logger.info(
-                        f"    → site={comp.site_value:.4f}, "
-                        f"T1_ref={comp.tier1_reference:.4f}, "
-                        f"intactness={comp.tier1_intactness:.1%}"
-                    )
-                elif comp.site_value is not None:
-                    logger.info(f"    → site={comp.site_value:.4f} (no reference)")
-                else:
-                    logger.info("    → extraction failed")
+                    comp = self.stats.compare(ref_result)
+                    return ref_result, comp
+                except Exception as e:
+                    logger.error(f"  Error in {spec.name}: {e}")
+                    return None, None
+
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                results = list(executor.map(process_indicator, indicators))
+
+            for ref_result, comp in results:
+                if ref_result and comp:
+                    all_ref_results.append(ref_result)
+                    all_comparisons.append(comp)
 
         # --- 5. Generate report ---
         if output_path is None:
