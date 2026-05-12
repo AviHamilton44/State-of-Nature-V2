@@ -161,7 +161,7 @@ class Pipeline:
                     return None, None
 
             from concurrent.futures import ThreadPoolExecutor
-            with ThreadPoolExecutor(max_workers=10) as executor:
+            with ThreadPoolExecutor(max_workers=3) as executor:
                 results = list(executor.map(process_indicator, indicators))
 
             for ref_result, comp in results:

@@ -159,23 +159,34 @@ async def run_pipeline(
             
         logger.info(f"File saved to {temp_file_path}")
 
-        # 2. Load Geometry
+        # 2. Load and Simplify Geometry
         gdf = gpd.read_file(temp_file_path)
         if gdf.empty:
             raise HTTPException(status_code=400, detail="Invalid or empty spatial file")
-        
+            
         if gdf.crs and gdf.crs.to_epsg() != 4326:
             gdf = gdf.to_crs(epsg=4326)
-            
-        from shapely.geometry import mapping
-        geometry = mapping(gdf.geometry.iloc[0])
+
+        # Simplify geometry to speed up GEE (~10m resolution)
+        gdf['geometry'] = gdf['geometry'].simplify(0.0001, preserve_topology=True)
         
-        # 2. Configure and Run Pipeline
-        logger.info(f"RUNNING: Darukaa Pipeline for {file.filename} (Year: {year})...")
+        # SAVE SIMPLIFIED FILE to disk so the pipeline uses it!
+        optimized_path = os.path.join(CURRENT_DIR, f"opt_{file.filename}")
+        gdf.to_file(optimized_path, driver='GeoJSON')
+        
+        logger.info(f"Optimized file saved to {optimized_path}")
+        
+        # 3. Configure and Run Pipeline
+        logger.info(f"RUNNING: Darukaa Pipeline (Parallel) for {file.filename}...")
         config = get_pipeline_config(year)
         pipeline = Pipeline(config, REGISTRY)
         
-        report = pipeline.run(temp_file_path)
+        # Pass the OPTIMIZED path
+        report = pipeline.run(optimized_path)
+        
+        # Cleanup optimized file
+        if os.path.exists(optimized_path):
+            os.remove(optimized_path)
         
         # 3. Calculate Scorecard using updated scoring logic
         scorecard = report.get("scorecard", [])
