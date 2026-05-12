@@ -38,13 +38,13 @@ def init_gee():
             key_data = json.load(f)
             
         service_account = key_data.get('client_email')
-        project = 'gaurav-singh-007'
+        project = key_data.get('project_id', 'gaurav-singh-007')
         
         # Use Service Account Credentials for non-interactive auth
         credentials = ee.ServiceAccountCredentials(service_account, str(key_path.absolute()))
         ee.Initialize(credentials=credentials, project=project)
             
-        print(f"[GEE SUCCESS] Google Earth Engine Initialized! Account: {service_account}")
+        print(f"[GEE SUCCESS] Google Earth Engine Initialized! Project: {project}, Account: {service_account}")
         _is_initialized = True
         return True
     except Exception as e:

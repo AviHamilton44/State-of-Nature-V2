@@ -118,9 +118,23 @@ def startup_event():
 REGISTRY = create_default_registry()
 
 def get_pipeline_config(year: int):
+    # Try to load project from key file
+    project_id = "gaurav-singh-007"
+    try:
+        key_path = os.path.join(CURRENT_DIR, "gee-key.json")
+        if not os.path.exists(key_path):
+            key_path = "gee-key.json" # check root
+            
+        if os.path.exists(key_path):
+            with open(key_path, 'r') as f:
+                key_data = json.load(f)
+                project_id = key_data.get('project_id', project_id)
+    except:
+        pass
+
     return Config(
-        gee_project="gaurav-singh-007",
-        bii_gee_asset="projects/gaurav-singh-007/assets/bii-2020_v2-1-1",
+        gee_project=project_id,
+        bii_gee_asset=f"projects/{project_id}/assets/bii-2020_v2-1-1",
         hmi_hard_ceiling=0.10,
         elevation_band_m=300.0,
         min_reference_pixels=5,
