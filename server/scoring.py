@@ -4,36 +4,31 @@ import pandas as pd
 # Protocol A: Published literature thresholds (applied to raw site value)
 PROTOCOL_A = {
     # ── Ecosystem Condition ──
-    "bii":  {"breaks": [0.20, 0.40, 0.60, 0.80], "scores": [1, 2, 3, 4, 5], "higher_is_better": True},
-    "flii": {"breaks": [2.0,  4.0,  6.0,  8.0],  "scores": [1, 2, 3, 4, 5], "higher_is_better": True},
-    "msa":  {"breaks": [0.20, 0.40, 0.60, 0.80], "scores": [1, 2, 3, 4, 5], "higher_is_better": True},
-
-    # ── Ecosystem Extent ──
-    "natural_habitat":  {"breaks": [30, 50, 70, 85], "scores": [1, 2, 3, 4, 5], "higher_is_better": True},
-    "natural_landcover": {"breaks": [30, 50, 70, 85], "scores": [1, 2, 3, 4, 5], "higher_is_better": True},
-    "forest_loss_rate": {"breaks": [1.0, 3.0, 6.0, 9.0], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
+    "bii":  {"breaks": [0.20, 0.40, 0.60, 0.80], "scores": [5, 4, 3, 2, 1], "higher_is_better": True},
+    "flii": {"breaks": [2.0,  4.0,  6.0,  8.0],  "scores": [5, 4, 3, 2, 1], "higher_is_better": True},
+    "msa":  {"breaks": [0.20, 0.40, 0.60, 0.80], "scores": [5, 4, 3, 2, 1], "higher_is_better": True},
 
     # ── Species Population Size ──
-    "flagship_habitat": {"breaks": [0.20, 0.40, 0.60, 0.80], "scores": [1, 2, 3, 4, 5], "higher_is_better": True},
+    "flagship_habitat": {"breaks": [0.20, 0.40, 0.60, 0.80], "scores": [5, 4, 3, 2, 1], "higher_is_better": True},
 
     # ── Species Extinction Risk ──
-    "ceri": {"breaks": [0.10, 0.20, 0.35, 0.50], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
-    "star_t": {"breaks": [1.0, 3.0, 6.0, 9.0], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
-    "kba_overlap": {"breaks": [1.0, 25.0, 75.0, 99.9], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
+    "ceri": {"breaks": [0.10, 0.20, 0.35, 0.50], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
+    "star_t": {"breaks": [1.0, 3.0, 6.0, 9.0], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
+    "kba_overlap": {"breaks": [1.0, 25.0, 75.0, 99.9], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
     
     # ── Threats & Pressure (Contextual, not in SoN score) ──
-    "lst_day": {"breaks": [32.0, 36.0, 40.0, 44.0], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
-    "lst_night": {"breaks": [22.0, 26.0, 30.0, 34.0], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
-    "ghm": {"breaks": [0.1, 0.3, 0.6, 0.9], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
-    "hdi": {"breaks": [0.5, 0.6, 0.7, 0.8], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
-    "light_pollution": {"breaks": [1.0, 5.0, 30.0, 100.0], "scores": [5, 4, 3, 2, 1], "higher_is_better": False},
+    "lst_day": {"breaks": [32.0, 36.0, 40.0, 44.0], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
+    "lst_night": {"breaks": [22.0, 26.0, 30.0, 34.0], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
+    "ghm": {"breaks": [0.1, 0.3, 0.6, 0.9], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
+    "hdi": {"breaks": [0.5, 0.6, 0.7, 0.8], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
+    "light_pollution": {"breaks": [1.0, 5.0, 30.0, 100.0], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
 }
 
 PROTOCOL_A_INDICATORS = set(PROTOCOL_A.keys())
 
 # Protocol B v1.0 -- FIXED thresholds (applied to Tier 2 intactness %, or Tier 1 where T2 unavailable)
 PROTOCOL_B_BREAKS = [30, 50, 70, 85]
-PROTOCOL_B_SCORES = [1,  2,  3,  4, 5]
+PROTOCOL_B_SCORES = [5,  4,  3,  2, 1]
 
 # Protocol C: Tier 1 regional comparison
 PROTOCOL_C_INDICATORS = {"cpland", "endemic_richness", "threatened_richness"}
@@ -47,7 +42,6 @@ DIM_MAP = {
 }
 
 THREATS = ["ghm", "light_pollution", "hdi", "lst_day", "lst_night"]
-
 DIM_NAMES = {
     1: "Ecosystem Extent",
     2: "Ecosystem Condition",
@@ -77,23 +71,23 @@ def apply_protocol_b(intactness_ratio):
 
 def concern_label(numeric):
     if numeric is None: return "—"
-    return {1: "VH", 2: "H", 3: "M", 4: "L", 5: "VL"}.get(round(numeric), "—")
+    return {1: "VL", 2: "L", 3: "M", 4: "H", 5: "VH"}.get(round(numeric), "—")
 
 def dim_label(score):
     if score is None: return "—"
     s = round(score * 2) / 2
-    if s >= 4.5: return "Very Low"
-    if s >= 3.5: return "Low"
-    if s >= 2.5: return "Moderate"
-    if s >= 1.5: return "High"
+    if s <= 1.5: return "Very Low"
+    if s <= 2.5: return "Low"
+    if s <= 3.5: return "Moderate"
+    if s <= 4.5: return "High"
     return "Very High"
 
 def son_concern_label(score):
     if score is None: return "Insufficient data"
-    if score > 8: return "Very Low"
-    if score > 7: return "Low"
-    if score > 5: return "Moderate"
-    if score > 3: return "High"
+    if score <= 4: return "Very Low"
+    if score <= 5: return "Low"
+    if score <= 7: return "Moderate"
+    if score <= 8: return "High"
     return "Very High"
 
 def calculate_scorecard(scorecard_data, registry):
