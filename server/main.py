@@ -69,15 +69,13 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 # CORS Configuration
-origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://state-of-nature-v2.vercel.app", # Replace with actual Vercel URL
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Temporarily allowing all origins for testing as requested
+    allow_origins=[
+        "https://state-of-nature-v2-n5l8sqoxl-avihamilton44s-projects.vercel.app",
+        "https://state-of-nature-v2.vercel.app",
+        "http://localhost:3000"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
