@@ -163,14 +163,16 @@ def calculate_scorecard(scorecard_data, registry):
 
     # 3. Aggregate Dimensions
     dim_scores = {}
-    dim_counts = {}
+    dim_metrics = {}
     for dim_num, indicators in DIM_MAP.items():
         values = []
+        populated = []
         for name in indicators:
             mc = metric_concerns.get(name)
             if mc and mc["concern_numeric"] is not None:
                 values.append(mc["concern_numeric"])
-        dim_counts[dim_num] = len(values)
+                populated.append(name)
+        dim_metrics[dim_num] = populated
         dim_scores[dim_num] = sum(values) / len(values) if values else None
 
     # 4. Final SoN Calculation
@@ -185,6 +187,7 @@ def calculate_scorecard(scorecard_data, registry):
         son_score = None
         total = 0
         partial = True
+
     pillar_metrics = {
         "Pillar-1: Ecosystem Extent": {},
         "Pillar-2: Ecosystem Condition": {},
@@ -342,17 +345,23 @@ def calculate_scorecard(scorecard_data, registry):
         "Day LST": get_cn("lst_day"),
         "Night LST": get_cn("lst_night")
     }
+
     return {
         "SoN Score": round(son_score, 1) if son_score is not None else None,
         "n_valid": n_valid,
         "partial": partial,
-        "Extent": round(dim_scores.get(1), 2) if dim_scores.get(1) else None,
-        "Condition": round(dim_scores.get(2), 2) if dim_scores.get(2) else None,
-        "Population": round(dim_scores.get(3), 2) if dim_scores.get(3) else None,
-        "Extinction": round(dim_scores.get(4), 2) if dim_scores.get(4) else None,
+        "Extent": round(dim_scores.get(1), 2) if dim_scores.get(1) is not None else None,
+        "Condition": round(dim_scores.get(2), 2) if dim_scores.get(2) is not None else None,
+        "Population": round(dim_scores.get(3), 2) if dim_scores.get(3) is not None else None,
+        "Extinction": round(dim_scores.get(4), 2) if dim_scores.get(4) is not None else None,
         "Pressure Score": round(pressure_score, 2),
         "metrics": pillar_metrics,
         "raw_metrics": raw_pillar_metrics,
         "pillar_concerns": pillar_concerns,
-        "metric_concerns": metric_concerns
+        "metric_concerns": metric_concerns,
+        "debug": {
+            "total_dim_sum": round(total, 3),
+            "dim_counts": {str(k): len(v) for k, v in dim_metrics.items()},
+            "dim_indicators": {str(k): v for k, v in dim_metrics.items()}
+        }
     }
