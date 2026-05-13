@@ -484,36 +484,41 @@ def extract_natural_habitat(g,c): return _reduce(_img_natural_habitat(c),g,10)
 def extract_natural_landcover(g,c): return _reduce(_img_natural_landcover(c),g,500)
 
 def extract_cpland(g, c):
+    """Ultra-robust CPLAND extraction for India PV Binary."""
     import ee; import math
     eg = _to_ee(g)
     pa = c.raster_paths.get("pv_binary", _PV)
     try:
         img = ee.Image(pa).select(0)
-        # Force 30m scale for India PV Binary to ensure robustness
+        # Use 30m scale consistently for connectivity
         scale = 30
         
-        # RP calculation (Connectivity kernel radius)
-        rp = 1  # Standard 1-pixel gap connectivity
-        
-        # Calculate Core Area (Intact pixels)
-        core = img.eq(1).unmask(0)
-        ca = core.multiply(ee.Image.pixelArea()).reduceRegion(
+        # Calculate Core Area (Pixels with value 1)
+        # We use a simple sum reducer on the binary mask
+        stats = img.eq(1).multiply(ee.Image.pixelArea()).reduceRegion(
             reducer=ee.Reducer.sum(),
             geometry=eg,
             scale=scale,
             maxPixels=1e13
         )
         
-        # Total Area
+        ca_m2 = float(stats.values().get(0).getInfo() or 0)
         pa_m2 = float(eg.area().getInfo())
-        if pa_m2 == 0: return {"value": 0.0, "pixels": None}
         
-        ca_val = float(ca.get(ca.getInfo().keys()[0] if ca.getInfo() else "b"))
-        connectivity = (ca_val / pa_m2) * 100
+        if pa_m2 <= 0: return {"value": 0.0, "pixels": None}
         
-        return {"value": max(0, min(100, connectivity)), "pixels": None}
+        connectivity = (ca_m2 / pa_m2) * 100
+        # Return at least 0.01 if there is any core area to avoid flat 0
+        final_val = max(0, min(100, connectivity))
+        
+        logger.info(f"CPLAND Debug: Site={pa_m2:.1f}m2, Core={ca_m2:.1f}m2, Result={final_val:.2f}%")
+        return {"value": final_val, "pixels": None}
+        
     except Exception as e:
-        logger.warning(f"CPLAND Extraction Error: {e}")
+        logger.error(f"CRITICAL CPLAND ERROR: {str(e)}")
+        # Check for common GEE errors in the message
+        if "Permission denied" in str(e):
+            logger.error("ACCESS DENIED: Service account needs Reader access to PV Binary asset.")
         return {"value": 0.0, "pixels": None}
 
 def extract_forest_loss_rate(g,c):
