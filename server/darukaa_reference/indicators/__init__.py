@@ -483,43 +483,24 @@ def _img_cpland_binary(c):
 def extract_natural_habitat(g,c): return _reduce(_img_natural_habitat(c),g,10)
 def extract_natural_landcover(g,c): return _reduce(_img_natural_landcover(c),g,500)
 
-def extract_cpland(g, c):
-    """Ultra-robust CPLAND extraction for India PV Binary."""
-    import ee; import math
-    eg = _to_ee(g)
-    pa = c.raster_paths.get("pv_binary", _PV)
+def extract_cpland(g,c):
+    import ee; eg=_to_ee(g); pa=c.raster_paths.get("pv_binary",_PV)
     try:
-        img = ee.Image(pa).select(0)
-        # Use 30m scale consistently for connectivity
-        scale = 30
+        img=ee.Image(pa).select(0)
+        # Use provided scale or fallback to 30m for PV Binary
+        try:
+            sm=img.projection().nominalScale().getInfo()
+            if sm<=0: sm=30
+        except:
+            sm=30
         
-        # Calculate Core Area (Pixels with value 1)
-        # We use a simple sum reducer on the binary mask
-        stats = img.eq(1).multiply(ee.Image.pixelArea()).reduceRegion(
-            reducer=ee.Reducer.sum(),
-            geometry=eg,
-            scale=scale,
-            maxPixels=1e13
-        )
-        
-        ca_m2 = float(stats.values().get(0).getInfo() or 0)
-        pa_m2 = float(eg.area().getInfo())
-        
-        if pa_m2 <= 0: return {"value": 0.0, "pixels": None}
-        
-        connectivity = (ca_m2 / pa_m2) * 100
-        # Return at least 0.01 if there is any core area to avoid flat 0
-        final_val = max(0, min(100, connectivity))
-        
-        logger.info(f"CPLAND Debug: Site={pa_m2:.1f}m2, Core={ca_m2:.1f}m2, Result={final_val:.2f}%")
-        return {"value": final_val, "pixels": None}
-        
-    except Exception as e:
-        logger.error(f"CRITICAL CPLAND ERROR: {str(e)}")
-        # Check for common GEE errors in the message
-        if "Permission denied" in str(e):
-            logger.error("ACCESS DENIED: Service account needs Reader access to PV Binary asset.")
-        return {"value": 0.0, "pixels": None}
+        rp=int(math.ceil((10+0.5*sm)/sm))
+        core=img.eq(1).unmask(0).rename("b").reduceNeighborhood(reducer=ee.Reducer.min(),kernel=ee.Kernel.circle(rp,units="pixels")).rename("c")
+        ca=core.multiply(ee.Image.pixelArea()).reduceRegion(reducer=ee.Reducer.sum(),geometry=eg,scale=sm,maxPixels=1e13)
+        pa_m2=float(eg.area().getInfo())
+        if pa_m2==0: return {"value":None,"pixels":None}
+        return {"value":max(0,min(100,100*float(ee.Number(ca.get("c")).getInfo())/pa_m2)),"pixels":None}
+    except Exception as e: logger.warning(f"CPLAND: {e}"); return {"value":None,"pixels":None}
 
 def extract_forest_loss_rate(g,c):
     import ee; eg=_to_ee(g)
@@ -744,6 +725,11 @@ def extract_star_t(g,c):
     except Exception as e: logger.warning(f"STAR_T: {e}"); return {"value":None,"pixels":None}
 
 # Threats
+def extract_ghm(g,c): return _reduce(_img_ghm(c),g,1000)
+def extract_light_pollution(g,c): return _reduce(_img_viirs(c),g,500)
+def extract_hdi(g,c): return _reduce(_img_hdi(c),g,10)
+def extract_lst_day(g,c): return _reduce(_img_lst_day(c),g,1000)
+def extract_lst_night(g,c): return _reduce(_img_lst_night(c),g,1000)
 def extract_ghm(g,c): return _reduce(_img_ghm(c),g,1000)
 def extract_light_pollution(g,c): return _reduce(_img_viirs(c),g,500)
 def extract_hdi(g,c): return _reduce(_img_hdi(c),g,10)
