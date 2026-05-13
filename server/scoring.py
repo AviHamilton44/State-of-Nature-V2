@@ -16,7 +16,7 @@ PROTOCOL_A = {
     "star_t": {"breaks": [1.0, 3.0, 6.0, 9.0], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
     "kba_overlap": {"breaks": [1.0, 25.0, 75.0, 99.9], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
     
-    # ── Threats & Pressure (Contextual, not in SoN score) ──
+    # ── Threats & Pressure ──
     "lst_day": {"breaks": [32.0, 36.0, 40.0, 44.0], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
     "lst_night": {"breaks": [22.0, 26.0, 30.0, 34.0], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
     "ghm": {"breaks": [0.1, 0.3, 0.6, 0.9], "scores": [1, 2, 3, 4, 5], "higher_is_better": False},
@@ -42,11 +42,12 @@ DIM_MAP = {
 }
 
 THREATS = ["ghm", "light_pollution", "hdi", "lst_day", "lst_night"]
+
 DIM_NAMES = {
     1: "Ecosystem Extent",
     2: "Ecosystem Condition",
-    3: "Population",
-    4: "Extinction Risk",
+    3: "Species Population Size",
+    4: "Species Extinction Risk",
 }
 
 def _is_valid(v):
@@ -84,135 +85,303 @@ def dim_label(score):
 
 def son_concern_label(score):
     if score is None: return "Insufficient data"
-    if score <= 4: return "Very Low"
-    if score <= 5: return "Low"
-    if score <= 7: return "Moderate"
-    if score <= 8: return "High"
+    if score < 4: return "Very Low"
+    if score < 5: return "Low"
+    if score < 7: return "Moderate"
+    if score < 8: return "High"
     return "Very High"
 
 def calculate_scorecard(scorecard_data, registry):
-    processed_rows = []
-    for row in scorecard_data:
-        clean_row = {}
-        for k, v in row.items():
-            if k in ["site_value", "tier1_intactness", "tier2_intactness"]:
-                if v is None: clean_row[k] = None
-                elif isinstance(v, (int, float)): clean_row[k] = float(v)
-                elif isinstance(v, str):
-                    try: 
-                        vs = v.replace("%", "").strip()
-                        clean_row[k] = float(vs) / 100.0 if "%" in v else float(vs)
-                    except: clean_row[k] = None
-                else: clean_row[k] = None
-            else: clean_row[k] = v
+    # scorecard_data is report["scorecard"] (list of dicts)
+    df = pd.DataFrame(scorecard_data)
+    
+    results_lookup = {}
+    for _, row in df.iterrows():
+        # Try to find slug from name or display_name
+        name = (row.get("indicator") or row.get("indicator_name") or row.get("name") or "").strip().lower()
+        display_name = (row.get("display_name") or "").strip().lower()
+        slug = None
         
-        raw_name = str(clean_row.get("display_name") or clean_row.get("indicator") or "").strip()
-        clean_row["_search_key"] = raw_name.lower()
-        import re
-        clean_row["_search_clean"] = re.sub(r"^[0-9A-Z.\s]+", "", clean_row["_search_key"]).strip()
-        processed_rows.append(clean_row)
+        for spec in registry.all():
+            s_name = spec.name.lower()
+            s_display = spec.display_name.lower()
+            if (name and s_name == name) or (display_name and s_display == display_name) or (name and s_display == name):
+                slug = spec.name; break
+        
+        lookup_key = slug or name or display_name
+        if lookup_key:
+            results_lookup[lookup_key] = row.to_dict()
 
     metric_concerns = {}
-    reg_specs = registry.all()
-    
-    for spec in reg_specs:
-        s_slug = spec.name.lower()
-        s_disp = spec.display_name.lower()
-        
-        matched_row = None
-        for row in processed_rows:
-            rk, rc = row["_search_key"], row["_search_clean"]
-            if s_slug == rk or s_disp == rk or s_slug == rc or s_disp == rc:
-                matched_row = row; break
-            if rc and (rc in s_disp or s_disp in rc):
-                matched_row = row; break
-                
-        if not matched_row: continue
 
-        site_val = matched_row.get("site_value")
-        t2 = matched_row.get("tier2_intactness")
-        t1 = matched_row.get("tier1_intactness")
+    for name, row in results_lookup.items():
+        site_val = row.get("site_value")
+        t2       = row.get("tier2_intactness")
+        t1       = row.get("tier1_intactness")
 
-        cn, protocol, intactness_used = None, "no ref", None
+        if not _is_valid(site_val): site_val = None
+        if not _is_valid(t2):       t2 = None
+        if not _is_valid(t1):       t1 = None
 
-        if spec.name in PROTOCOL_A_INDICATORS and site_val is not None:
-            cn, protocol = apply_protocol_a(spec.name, site_val), "A"
+        if name in PROTOCOL_A_INDICATORS and site_val is not None:
+            cn = apply_protocol_a(name, site_val)
+            protocol = "A (published absolute threshold)"
+            intactness_used = None
+            t_ref = None
         elif t2 is not None:
-            cn, protocol, intactness_used = apply_protocol_b(t2), "B", t2
+            cn = apply_protocol_b(t2)
+            protocol = "B v1.0 (Tier 2 intactness)"
+            intactness_used = t2
+            t_ref = row.get("tier2_reference")
         elif t1 is not None:
-            cn, protocol, intactness_used = apply_protocol_b(t1), "C", t1
+            cn = apply_protocol_b(t1)
+            if name in PROTOCOL_C_INDICATORS:
+                protocol = "C (Tier 1 regional — designed ref for this indicator)"
+            else:
+                protocol = "B v1.0 (Tier 1 fallback — T2 unavailable)"
+            intactness_used = t1
+            t_ref = row.get("tier1_reference")
+        else:
+            cn = None
+            protocol = "— (no reference computable)"
+            intactness_used = None
+            t_ref = None
 
-        if cn is not None:
-            metric_concerns[spec.name] = {
-                "concern_numeric": cn, "concern_label": concern_label(cn),
-                "protocol": protocol, "site_value": site_val,
-                "intactness_used": intactness_used, "display_name": spec.display_name,
-                "pillar": spec.pillar
-            }
+        print(f"[DEBUG] Indicator: {name}, Value: {site_val}, CN: {cn}, Label: {concern_label(cn)}")
+        metric_concerns[name] = {
+            "concern_numeric":  cn,
+            "concern_label":    concern_label(cn),
+            "protocol":         protocol,
+            "intactness_used":  intactness_used,
+            "site_value":       site_val,
+            "display_name":     row.get("display_name", name),
+        }
 
-    dim_scores = {}
-    dim_metrics = {}
+    dim_scores   = {}
+    dim_populated = {}
+
     for dim_num, indicators in DIM_MAP.items():
-        vals = [mc["concern_numeric"] for n in indicators if (mc := metric_concerns.get(n)) and mc["concern_numeric"] is not None]
-        dim_metrics[dim_num] = [n for n in indicators if n in metric_concerns]
-        dim_scores[dim_num] = sum(vals) / len(vals) if vals else None
+        values, populated_names = [], []
+        for name in indicators:
+            mc = metric_concerns.get(name)
+            if mc and mc["concern_numeric"] is not None:
+                values.append(mc["concern_numeric"])
+                populated_names.append(name)
+        dim_populated[dim_num] = populated_names
+        dim_scores[dim_num] = sum(values) / len(values) if values else None
 
-    valid_dims = {d: s for d, s in dim_scores.items() if s is not None}
-    n_valid = len(valid_dims)
-    son_score = (sum(valid_dims.values()) - n_valid) / (n_valid * 4) * 10 if n_valid >= 1 else None
+    valid_dims = {str(d): s for d, s in dim_scores.items() if s is not None}
+    n_valid    = len(valid_dims)
 
-    # Aggregation for Frontend
-    pillar_metrics = {f"Pillar-{i}: {DIM_NAMES.get(i, 'Pressure' if i==5 else 'Indicator')}": {} for i in range(1, 6)}
-    raw_pillar_metrics = {k: {} for k in pillar_metrics}
-    pillar_concerns = {k: {} for k in pillar_metrics}
-
-    for name, mc in metric_concerns.items():
-        p_num = mc["pillar"]
-        p_key = f"Pillar-{p_num}: {DIM_NAMES.get(p_num, 'Pressure' if p_num==5 else 'Indicator')}"
-        disp = mc["display_name"]
+    if n_valid >= 1:
+        total     = sum(valid_dims.values())
+        son_score = (total - n_valid) / (n_valid * 4) * 10
+        partial   = n_valid < 4
+    else:
+        son_score = None
+        partial   = True
         
-        # Dashboard wants normalized 0-1 for most, but raw for some
-        norm = mc["intactness_used"] if mc["intactness_used"] is not None else mc["site_value"]
-        if name == "kba_overlap": norm = mc["site_value"] / 100.0
-        if p_num == 5: norm = mc["site_value"]
-        
-        # Specialized keys for Dashboard widgets
-        final_disp = disp
-        if name == "ghm": final_disp = "GHM"
-        elif name == "hdi": final_disp = "HDI"
-        elif name == "light_pollution": final_disp = "Light Pollution"
-        elif name == "ndvi": final_disp = "NDVI"
-        elif name == "habitat_health": final_disp = "Habitat Health Index"
-        elif name == "flii": final_disp = "FLII"
-        elif name == "eii": final_disp = "EII Overall"
-        elif name == "bii": final_disp = "BII"
-        elif name == "natural_habitat": final_disp = "Natural Habitat Extent"
-        elif name == "natural_landcover": final_disp = "Natural Land Cover %"
-        elif name == "forest_loss_rate": final_disp = "Habitat Loss Rate"
-        elif name == "cpland": final_disp = "Connectivity (CPLAND)"
-        elif name == "kba_overlap": final_disp = "KBA Overlap"
-        elif name == "endemic_richness": final_disp = "Endemic / Small Range"
-        elif name == "flagship_habitat": final_disp = "Habitat Viability Index"
-        elif name == "threatened_richness": final_disp = "Threatened Species"
-        elif name == "ceri": final_disp = "CERI"
-        elif name == "star_t": final_disp = "STAR_T"
-        
-        pillar_metrics[p_key][final_disp] = norm
-        raw_pillar_metrics[p_key][final_disp] = mc["site_value"]
-        pillar_concerns[p_key][final_disp] = mc["concern_numeric"]
+    # ── Final Schema Mapping for Frontend ───────────────────────────────────────────
+    
+    # Pillar mapping for metrics object
+    pillar_metrics = {
+        "Pillar-1: Ecosystem Extent": {},
+        "Pillar-2: Ecosystem Condition": {},
+        "Pillar-3: Population": {},
+        "Pillar-4: Extinction Risk": {},
+        "Pillar-5: Pressure": {}
+    }
 
-    # Calculate overall Pressure Score using aligned keys
-    p5 = pillar_metrics.get("Pillar-5: Pressure", {})
-    p_vals = [p5.get("GHM", 0), p5.get("HDI", 0), (p5.get("Light Pollution", 0) / 100.0 if p5.get("Light Pollution", 0) > 1 else p5.get("Light Pollution", 0))]
-    pressure_score = (sum(p_vals) / 3) * 10
+    # Helper to get normalized value (0-1) for a metric
+    def get_norm(name):
+        mc = metric_concerns.get(name)
+        if not mc: return "Coming soon"
+        
+        # If Protocol A, we need to map the absolute value to 0-1
+        if mc["protocol"].startswith("A"):
+            val = mc["site_value"]
+            if val is None: return 0
+            if name == "flii": return val / 10.0
+            if name == "kba_overlap": return val / 100.0
+            if name == "bii": return val # BII is already 0-1
+            if name == "ceri": return 1.0 - val # CERI 0 is best, 1 is worst
+            if name == "star_t": return 1.0 - min(val / 10.0, 1.0) # STAR_T 0 is best
+            if name == "flagship_habitat": return val # already 0-1
+            return val
+            
+        # If Protocol B/C, use intactness_used
+        return mc["intactness_used"] if mc["intactness_used"] is not None else 0
+
+    # Pillar 1
+    pillar_metrics["Pillar-1: Ecosystem Extent"] = {
+        "Natural Habitat Extent": get_norm("natural_habitat"),
+        "Natural Land Cover %": get_norm("natural_landcover"),
+        "Habitat Loss Rate": get_norm("forest_loss_rate"),
+        "Connectivity (CPLAND)": get_norm("cpland"),
+        "KBA Overlap": get_norm("kba_overlap")
+    }
+
+    # Pillar 2
+    pillar_metrics["Pillar-2: Ecosystem Condition"] = {
+        "NDVI": get_norm("ndvi"),
+        "Habitat Health Index": get_norm("habitat_health"),
+        "FLII": get_norm("flii"),
+        "EII Overall": get_norm("eii"),
+        "EII Structural": get_norm("eii_structural"),
+        "EII Compositional": get_norm("eii_compositional"),
+        "EII Functional": get_norm("eii_functional"),
+        "BII": get_norm("bii"),
+        "PDF": get_norm("pdf"),
+        "Aridity Index": get_norm("aridity_index"),
+        "Water Stress": "Coming soon",
+        "Water Quality": "Coming soon"
+    }
+
+    # Pillar 3
+    pillar_metrics["Pillar-3: Population"] = {
+        "Species Richness": get_norm("endemic_richness"),
+        "Endemic / Small Range": get_norm("endemic_richness"),
+        "Habitat Viability Index": get_norm("flagship_habitat"),
+        "IUCN Conservation Value": "Coming soon"
+    }
+
+    # Pillar 4
+    pillar_metrics["Pillar-4: Extinction Risk"] = {
+        "Threatened Species": get_norm("threatened_richness"),
+        "CERI": get_norm("ceri"),
+        "STAR_T": get_norm("star_t"),
+        "STAR_R": "Coming soon"
+    }
+
+    # Pillar 5 (Pressure)
+    res_lookup = results_lookup
+    pillar_metrics["Pillar-5: Pressure"] = {
+        "GHM": res_lookup.get("ghm", {}).get("site_value", 0),
+        "Light Pollution": res_lookup.get("light_pollution", {}).get("site_value", 0),
+        "HDI": res_lookup.get("hdi", {}).get("site_value", 0),
+        "Day LST": res_lookup.get("lst_day", {}).get("site_value", 0),
+        "Night LST": res_lookup.get("lst_night", {}).get("site_value", 0),
+        "Urban Heat Island": "Coming soon"
+    }
+
+    # Calculate Pressure Score (0-10 scale, Higher = Worse)
+    pressure_vals = [
+        res_lookup.get("ghm", {}).get("site_value", 0),
+        res_lookup.get("light_pollution", {}).get("site_value", 0) / 100.0, # Normalizing VIIRS for avg
+        res_lookup.get("hdi", {}).get("site_value", 0)
+    ]
+    pressure_score = (sum(pressure_vals) / len(pressure_vals)) * 10 if pressure_vals else 0
+
+    # Collect Raw Site Values for Display
+    raw_pillar_metrics = {
+        "Pillar-1: Ecosystem Extent": {},
+        "Pillar-2: Ecosystem Condition": {},
+        "Pillar-3: Population": {},
+        "Pillar-4: Extinction Risk": {},
+        "Pillar-5: Pressure": {}
+    }
+
+    def get_raw(name):
+        mc = metric_concerns.get(name)
+        if mc: return mc["site_value"]
+        if name in res_lookup: return res_lookup[name].get("site_value")
+        return 0
+
+    # Populate Raw
+    raw_pillar_metrics["Pillar-1: Ecosystem Extent"] = {
+        "Natural Habitat Extent": get_raw("natural_habitat"),
+        "Natural Land Cover %": get_raw("natural_landcover"),
+        "Habitat Loss Rate": get_raw("forest_loss_rate"),
+        "Connectivity (CPLAND)": get_raw("cpland"),
+        "KBA Overlap": get_raw("kba_overlap")
+    }
+    raw_pillar_metrics["Pillar-2: Ecosystem Condition"] = {
+        "NDVI": get_raw("ndvi"),
+        "Habitat Health Index": get_raw("habitat_health"),
+        "FLII": get_raw("flii"),
+        "EII Overall": get_raw("eii"),
+        "EII Structural": get_raw("eii_structural"),
+        "EII Compositional": get_raw("eii_compositional"),
+        "EII Functional": get_raw("eii_functional"),
+        "BII": get_raw("bii"),
+        "PDF": get_raw("pdf"),
+        "Aridity Index": get_raw("aridity_index")
+    }
+    raw_pillar_metrics["Pillar-3: Population"] = {
+        "Species Richness": get_raw("endemic_richness"),
+        "Endemic / Small Range": get_raw("endemic_richness"),
+        "Habitat Viability Index": get_raw("flagship_habitat")
+    }
+    raw_pillar_metrics["Pillar-4: Extinction Risk"] = {
+        "Threatened Species": get_raw("threatened_richness"),
+        "CERI": get_raw("ceri"),
+        "STAR_T": get_raw("star_t")
+    }
+    raw_pillar_metrics["Pillar-5: Pressure"] = pillar_metrics["Pillar-5: Pressure"]
+
+    # Pillar mapping for concern levels (1-5)
+    pillar_concerns = {
+        "Pillar-1: Ecosystem Extent": {},
+        "Pillar-2: Ecosystem Condition": {},
+        "Pillar-3: Population": {},
+        "Pillar-4: Extinction Risk": {},
+        "Pillar-5: Pressure": {}
+    }
+
+    def get_cn(name):
+        mc = metric_concerns.get(name)
+        return mc["concern_numeric"] if mc else None
+
+    # Pillar Concerns
+    pillar_concerns["Pillar-1: Ecosystem Extent"] = {
+        "Natural Habitat Extent": get_cn("natural_habitat"),
+        "Natural Land Cover %": get_cn("natural_landcover"),
+        "Habitat Loss Rate": get_cn("forest_loss_rate"),
+        "Connectivity (CPLAND)": get_cn("cpland"),
+        "KBA Overlap": get_cn("kba_overlap")
+    }
+    pillar_concerns["Pillar-2: Ecosystem Condition"] = {
+        "NDVI": get_cn("ndvi"),
+        "Habitat Health Index": get_cn("habitat_health"),
+        "FLII": get_cn("flii"),
+        "EII Overall": get_cn("eii"),
+        "EII Structural": get_cn("eii_structural"),
+        "EII Compositional": get_cn("eii_compositional"),
+        "EII Functional": get_cn("eii_functional"),
+        "BII": get_cn("bii"),
+        "PDF": get_cn("pdf"),
+        "Aridity Index": get_cn("aridity_index")
+    }
+    pillar_concerns["Pillar-3: Population"] = {
+        "Species Richness": get_cn("endemic_richness"),
+        "Endemic / Small Range": get_cn("endemic_richness"),
+        "Habitat Viability Index": get_cn("flagship_habitat")
+    }
+    pillar_concerns["Pillar-4: Extinction Risk"] = {
+        "Threatened Species": get_cn("threatened_richness"),
+        "CERI": get_cn("ceri"),
+        "STAR_T": get_cn("star_t")
+    }
+    pillar_concerns["Pillar-5: Pressure"] = {
+        "GHM": get_cn("ghm"),
+        "Light Pollution": get_cn("light_pollution"),
+        "HDI": get_cn("hdi"),
+        "Day LST": get_cn("lst_day"),
+        "Night LST": get_cn("lst_night")
+    }
 
     return {
         "SoN Score": round(son_score, 1) if son_score is not None else None,
-        "n_valid": n_valid, "partial": n_valid < 4,
-        "Extent": round(dim_scores.get(1), 2) if dim_scores.get(1) is not None else None,
-        "Condition": round(dim_scores.get(2), 2) if dim_scores.get(2) is not None else None,
-        "Population": round(dim_scores.get(3), 2) if dim_scores.get(3) is not None else None,
-        "Extinction": round(dim_scores.get(4), 2) if dim_scores.get(4) is not None else None,
+        "n_valid": n_valid,
+        "partial": partial,
+        "Extent": round(dim_scores.get(1), 2) if dim_scores.get(1) else None,
+        "Condition": round(dim_scores.get(2), 2) if dim_scores.get(2) else None,
+        "Population": round(dim_scores.get(3), 2) if dim_scores.get(3) else None,
+        "Extinction": round(dim_scores.get(4), 2) if dim_scores.get(4) else None,
         "Pressure Score": round(pressure_score, 2),
-        "metrics": pillar_metrics, "raw_metrics": raw_pillar_metrics, "pillar_concerns": pillar_concerns
+        "metrics": pillar_metrics,
+        "raw_metrics": raw_pillar_metrics,
+        "pillar_concerns": pillar_concerns,
+        "metric_concerns": metric_concerns
     }
+

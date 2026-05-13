@@ -120,7 +120,7 @@ def create_default_registry() -> IndicatorRegistry:
 
     r.register(name="forest_loss_rate", display_name="Habitat Loss Rate", source_type="gee",
         extract_fn=extract_forest_loss_rate, unit="% per year", value_range=(0,100),
-        citation="Hansen et al. (2013). Science. DOI:10.1126/science.1244693. v1.12.",
+        citation="Hansen et al. (2013). Science. DOI:10.1126/science.1244693. v1.13.",
         tier2_eligible=True, higher_is_better=False, reference_radius_km=50.0, pillar=1,
         metadata={"gee_image_fn": _img_forest_loss, "tnfd_dim": 1})
 
@@ -275,7 +275,7 @@ def _img_natural_landcover(c):
 
 def _img_forest_loss(c):
     import ee
-    gfc=ee.Image("UMD/hansen/global_forest_change_2024_v1_12")
+    gfc=ee.Image("UMD/hansen/global_forest_change_2025_v1_13")
     f=gfc.select("treecover2000").gte(30); l=gfc.select("lossyear").gt(0)
     return l.divide(f.max(1)).multiply(100).divide(24).updateMask(f).rename("forest_loss_rate")
 
@@ -498,7 +498,7 @@ def extract_cpland(g,c):
 
 def extract_forest_loss_rate(g,c):
     import ee; eg=_to_ee(g)
-    gfc=ee.Image("UMD/hansen/global_forest_change_2024_v1_12").clip(eg)
+    gfc=ee.Image("UMD/hansen/global_forest_change_2025_v1_13").clip(eg)
     f=gfc.select("treecover2000").gte(30); l=gfc.select("lossyear").gt(0); pa=ee.Image.pixelArea()
     a0=pa.updateMask(f).reduceRegion(reducer=ee.Reducer.sum(),geometry=eg,scale=30,maxPixels=1e13)
     al=pa.updateMask(l).reduceRegion(reducer=ee.Reducer.sum(),geometry=eg,scale=30,maxPixels=1e13)

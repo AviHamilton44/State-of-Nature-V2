@@ -64,18 +64,23 @@ def sanitize_nan(data):
 app = FastAPI(title="State of Nature Dashboard API")
 
 # Environment Variables
-PORT = int(os.getenv("PORT", 8000))
+PORT = int(os.getenv("PORT", 8001))
 DATABASE_URL = os.getenv("DATABASE_URL")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 # CORS Configuration
+origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "https://state-of-nature-v2.vercel.app",
+    "https://state-of-nature-v2-mjh9kv3vz-avihamilton44s-projects.vercel.app",
+    "https://state-of-nature-v2.onrender.com",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://state-of-nature-v2-n5l8sqoxl-avihamilton44s-projects.vercel.app",
-        "https://state-of-nature-v2.vercel.app",
-        "http://localhost:3000"
-    ],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -116,23 +121,9 @@ def startup_event():
 REGISTRY = create_default_registry()
 
 def get_pipeline_config(year: int):
-    # Try to load project from key file
-    project_id = "gaurav-singh-007"
-    try:
-        key_path = os.path.join(CURRENT_DIR, "gee-key.json")
-        if not os.path.exists(key_path):
-            key_path = "gee-key.json" # check root
-            
-        if os.path.exists(key_path):
-            with open(key_path, 'r') as f:
-                key_data = json.load(f)
-                project_id = key_data.get('project_id', project_id)
-    except:
-        pass
-
     return Config(
-        gee_project=project_id,
-        bii_gee_asset=f"projects/{project_id}/assets/bii-2020_v2-1-1",
+        gee_project="gee-service-account-493505",
+        bii_gee_asset="projects/gee-service-account-493505/assets/bii-2020_v2-1-1",
         hmi_hard_ceiling=0.10,
         elevation_band_m=300.0,
         min_reference_pixels=5,

@@ -115,18 +115,17 @@ const calculateDistribution = (metrics, pillarConcerns) => {
     return 'VH';
   };
 
-  if (metrics && typeof metrics === 'object') {
-    Object.entries(metrics).forEach(([groupName, groupData]) => {
-      const idx = pillarMap[groupName];
-      if (idx !== undefined && groupData && typeof groupData === 'object') {
-        Object.entries(groupData).forEach(([name, val]) => {
-          const concernNumeric = pillarConcerns?.[groupName]?.[name];
-          const level = concernNumeric !== undefined ? getLevel(concernNumeric) : getMetricConcernLevel(val, groupName, name);
-          if (level) dist[idx][level] += 1;
-        });
-      }
-    });
-  }
+  Object.entries(metrics).forEach(([groupName, groupData]) => {
+    const idx = pillarMap[groupName];
+    if (idx !== undefined) {
+      Object.entries(groupData).forEach(([name, val]) => {
+        // Use backend pre-calculated concern if available
+        const concernNumeric = pillarConcerns?.[groupName]?.[name];
+        const level = concernNumeric !== undefined ? getLevel(concernNumeric) : getMetricConcernLevel(val, groupName, name);
+        if (level) dist[idx][level] += 1;
+      });
+    }
+  });
   return dist;
 };
 
@@ -230,10 +229,10 @@ export default function Dashboard({ data, geoJson, onReset }) {
   const stackedData = calculateDistribution(metrics || {}, data?.pillar_concerns);
 
   const pillarMetricCounts = [
-    { name: 'Extent', count: (metrics && typeof metrics === 'object' && metrics["Pillar-1: Ecosystem Extent"]) ? Object.keys(metrics["Pillar-1: Ecosystem Extent"]).length : 0, fill: '#10B981' },
-    { name: 'Condition', count: (metrics && typeof metrics === 'object' && metrics["Pillar-2: Ecosystem Condition"]) ? Object.keys(metrics["Pillar-2: Ecosystem Condition"]).length : 0, fill: '#3B82F6' },
-    { name: 'Population', count: (metrics && typeof metrics === 'object' && metrics["Pillar-3: Population"]) ? Object.keys(metrics["Pillar-3: Population"]).length : 0, fill: '#8B5CF6' },
-    { name: 'Extinction', count: (metrics && typeof metrics === 'object' && metrics["Pillar-4: Extinction Risk"]) ? Object.keys(metrics["Pillar-4: Extinction Risk"]).length : 0, fill: '#F59E0B' },
+    { name: 'Extent', count: Object.keys(metrics?.["Pillar-1: Ecosystem Extent"] || {}).length, fill: '#10B981' },
+    { name: 'Condition', count: Object.keys(metrics?.["Pillar-2: Ecosystem Condition"] || {}).length, fill: '#3B82F6' },
+    { name: 'Population', count: Object.keys(metrics?.["Pillar-3: Population"] || {}).length, fill: '#8B5CF6' },
+    { name: 'Extinction', count: Object.keys(metrics?.["Pillar-4: Extinction Risk"] || {}).length, fill: '#F59E0B' },
   ];
 
   const pressureData = [
@@ -936,7 +935,7 @@ export default function Dashboard({ data, geoJson, onReset }) {
             <h3 className="card-title" style={{ fontSize: '1.25rem' }}>Detailed Metrics</h3>
           </div>
 
-          {(metrics && typeof metrics === 'object') ? Object.entries(metrics).map(([groupName, groupData]) => {
+          {Object.entries(metrics).map(([groupName, groupData]) => {
             const isExpanded = expandedGroup === groupName;
             return (
               <div key={groupName} className="metrics-section" style={{ marginBottom: '0.25rem' }}>
@@ -952,8 +951,8 @@ export default function Dashboard({ data, geoJson, onReset }) {
 
                 <div className={`accordion-content ${isExpanded ? 'expanded' : ''}`}>
                   <div className="metrics-list">
-                    {groupData && typeof groupData === 'object' && Object.entries(groupData).map(([metricName, metricValue]) => {
-                      const rawValue = data.raw_metrics?.[groupName]?.[metricName] ?? 0;
+                    {Object.entries(groupData).map(([metricName, metricValue]) => {
+                      const rawValue = data.raw_metrics?.[groupName]?.[metricName];
                       const grade = getMetricGrade(metricValue, groupName, metricName, data);
                       return (
                         <div key={metricName} className="metric-item">
@@ -983,11 +982,7 @@ export default function Dashboard({ data, geoJson, onReset }) {
                 </div>
               </div>
             );
-          }) : (
-            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-              No detailed metrics available for this site.
-            </div>
-          )}
+          })}
 
         </div>
 

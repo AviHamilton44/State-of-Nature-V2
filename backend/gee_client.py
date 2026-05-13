@@ -10,52 +10,60 @@ def init_gee():
     """Initializes Google Earth Engine using the service account key."""
     global _is_initialized
     
-    # Define possible locations for the key file
-    possible_paths = [
-        Path("gee-key.json"),                      # Root directory (Render Secret File)
-        Path(__file__).parent / "gee-key.json",    # backend/ folder
-        Path(__file__).parent.parent / "gee-key.json", # Root from backend/
-        Path("server/gee-key.json")                # server/ folder
+    # Priority: 
+    # 1. Environment Variable (JSON string)
+    # 2. Secret File in root (Render standard)
+    # 3. Secret File in backend/
+    # 4. Secret File in server/
+    
+    key_json = os.getenv("GEE_SERVICE_ACCOUNT_KEY")
+    key_path = None
+    
+    if key_json:
+        try:
+            key_dict = json.loads(key_json)
+            credentials = ee.ServiceAccountCredentials(key_dict.get("client_email"), key_data=key_json)
+            ee.Initialize(credentials=credentials, project=key_dict.get("project_id", "gaurav-singh-007"))
+            print("GEE Initialized via Environment Variable.")
+            _is_initialized = True
+            return True
+        except Exception as e:
+            print(f"Failed to init via ENV: {e}")
+
+    # Check paths
+    paths_to_check = [
+        Path("/opt/render/project/src/server/gee-key.json"), # Absolute Render path
+        Path("server/gee-key.json"),
+        Path("gee-key.json"),
+        Path(__file__).parent / "gee-key.json",
+        Path(__file__).parent.parent / "server" / "gee-key.json"
     ]
     
-    key_path = None
-    for p in possible_paths:
-        if p.exists():
-            key_path = p
+    for path in paths_to_check:
+        if path.exists():
+            key_path = path
             break
-            
-    if not key_path:
-        print("CRITICAL: gee-key.json not found in any expected location.")
-        print(f"Checked paths: {[str(p) for p in possible_paths]}")
-        print("Earth Engine running in graceful fallback mode.")
-        return False
 
-    print(f"[GEE INFO] Loading GEE credentials from: {key_path.absolute()}")
-    
+    if not key_path:
+        print("gee-key.json not found in any standard location. Falling back to default auth.")
+        try:
+            ee.Initialize()
+            _is_initialized = True
+            return True
+        except:
+            return False
+
     try:
-        # Load the key file content
-        with open(key_path, 'r') as f:
+        with open(key_path) as f:
             key_data = json.load(f)
             
-        service_account = key_data.get('client_email')
-        project = key_data.get('project_id', 'gaurav-singh-007')
-        
-        # Use Service Account Credentials for non-interactive auth
-        credentials = ee.ServiceAccountCredentials(service_account, str(key_path.absolute()))
-        ee.Initialize(credentials=credentials, project=project)
-            
-        print(f"[GEE SUCCESS] Google Earth Engine Initialized! Project: {project}, Account: {service_account}")
+        credentials = ee.ServiceAccountCredentials(key_data['client_email'], key_path=str(key_path))
+        ee.Initialize(credentials=credentials, project=key_data.get("project_id", "gaurav-singh-007"))
+        print(f"Google Earth Engine Initialized Successfully! (Key: {key_path})")
         _is_initialized = True
         return True
     except Exception as e:
-        print(f"[GEE ERROR] Initialization failed: {str(e)}")
-        # Check if it's a JSON error or something else
-        try:
-            with open(key_path, 'r') as f:
-                content = f.read()
-                print(f"[GEE DEBUG] Key file size: {len(content)} bytes. Starts with: {content[:20]}...")
-        except:
-            pass
+        print(f"Earth Engine Initialization Error: {e}")
         return False
 
 
