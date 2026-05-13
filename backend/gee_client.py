@@ -57,7 +57,7 @@ def init_gee():
         with open(key_path) as f:
             key_data = json.load(f)
             
-        credentials = ee.ServiceAccountCredentials(key_data['client_email'], key_path=str(key_path))
+        credentials = ee.ServiceAccountCredentials(key_data['client_email'], key_file=str(key_path))
         ee.Initialize(credentials=credentials, project=key_data.get("project_id", "gaurav-singh-007"))
         print(f"Google Earth Engine Initialized Successfully! (Key: {key_path})")
         _is_initialized = True
