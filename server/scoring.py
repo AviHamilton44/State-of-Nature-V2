@@ -239,10 +239,8 @@ def calculate_scorecard(scorecard_data, registry):
 
     # Pillar 3
     pillar_metrics["Pillar-3: Population"] = {
-        "Species Richness": get_norm("endemic_richness"),
         "Endemic / Small Range": get_norm("endemic_richness"),
-        "Habitat Viability Index": get_norm("flagship_habitat"),
-        "IUCN Conservation Value": "Coming soon"
+        "Habitat Viability Index": get_norm("flagship_habitat")
     }
 
     # Pillar 4
@@ -308,7 +306,6 @@ def calculate_scorecard(scorecard_data, registry):
         "Aridity Index": get_raw("aridity_index")
     }
     raw_pillar_metrics["Pillar-3: Population"] = {
-        "Species Richness": get_raw("endemic_richness"),
         "Endemic / Small Range": get_raw("endemic_richness"),
         "Habitat Viability Index": get_raw("flagship_habitat")
     }
@@ -353,7 +350,6 @@ def calculate_scorecard(scorecard_data, registry):
         "Aridity Index": get_cn("aridity_index")
     }
     pillar_concerns["Pillar-3: Population"] = {
-        "Species Richness": get_cn("endemic_richness"),
         "Endemic / Small Range": get_cn("endemic_richness"),
         "Habitat Viability Index": get_cn("flagship_habitat")
     }

@@ -486,8 +486,14 @@ def extract_natural_landcover(g,c): return _reduce(_img_natural_landcover(c),g,5
 def extract_cpland(g,c):
     import ee; eg=_to_ee(g); pa=c.raster_paths.get("pv_binary",_PV)
     try:
-        img=ee.Image(pa).select(0); sm=img.projection().nominalScale().getInfo()
-        if sm<=0: return {"value":None,"pixels":None}
+        img=ee.Image(pa).select(0)
+        # Use provided scale or fallback to 30m for PV Binary
+        try:
+            sm=img.projection().nominalScale().getInfo()
+            if sm<=0: sm=30
+        except:
+            sm=30
+        
         rp=int(math.ceil((10+0.5*sm)/sm))
         core=img.eq(1).unmask(0).rename("b").reduceNeighborhood(reducer=ee.Reducer.min(),kernel=ee.Kernel.circle(rp,units="pixels")).rename("c")
         ca=core.multiply(ee.Image.pixelArea()).reduceRegion(reducer=ee.Reducer.sum(),geometry=eg,scale=sm,maxPixels=1e13)

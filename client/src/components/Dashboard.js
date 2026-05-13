@@ -19,12 +19,12 @@ const RADIAN = Math.PI / 180;
 
 const getMetricIcon = (name) => {
   const n = name.toLowerCase();
-  if (n.includes('water') || n.includes('rain') || n.includes('aquatic') || n.includes('aridity') || n.includes('scarcity')) return <Droplet size={16} color="var(--primary)" />;
+  if (n.includes('water') || n.includes('rain') || n.includes('aquatic') || n.includes('aridity') || n.includes('scarcity')) return <Droplet size={16} color="#3B82F6" />;
   if (n.includes('air') || n.includes('wind') || n.includes('pollution') || n.includes('light')) return <Wind size={16} color="var(--dim-extent)" />;
   if (n.includes('sun') || n.includes('temp') || n.includes('climate') || n.includes('lst')) return <Sun size={16} color="var(--color-score-mid)" />;
   if (n.includes('risk') || n.includes('threat') || n.includes('loss') || n.includes('extinction') || n.includes('disturbance')) return <ShieldAlert size={16} color="var(--dim-threat)" />;
-  if (n.includes('energy') || n.includes('power') || n.includes('npp') || n.includes('functional')) return <Zap size={16} color="var(--color-score-high)" />;
-  if (n.includes('species') || n.includes('biodiversity') || n.includes('bii') || n.includes('habitat') || n.includes('integrity') || n.includes('ndvi')) return <Leaf size={16} color="var(--color-score-high)" />;
+  if (n.includes('energy') || n.includes('power') || n.includes('npp') || n.includes('functional') || n.includes('integrity')) return <Box size={16} color="var(--color-score-high)" />;
+  if (n.includes('species') || n.includes('biodiversity') || n.includes('bii') || n.includes('habitat') || n.includes('ndvi')) return <Leaf size={16} color="var(--color-score-high)" />;
   return <Box size={16} color="var(--text-secondary)" />;
 };
 
