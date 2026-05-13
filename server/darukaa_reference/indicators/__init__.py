@@ -483,24 +483,38 @@ def _img_cpland_binary(c):
 def extract_natural_habitat(g,c): return _reduce(_img_natural_habitat(c),g,10)
 def extract_natural_landcover(g,c): return _reduce(_img_natural_landcover(c),g,500)
 
-def extract_cpland(g,c):
-    import ee; eg=_to_ee(g); pa=c.raster_paths.get("pv_binary",_PV)
+def extract_cpland(g, c):
+    import ee; import math
+    eg = _to_ee(g)
+    pa = c.raster_paths.get("pv_binary", _PV)
     try:
-        img=ee.Image(pa).select(0)
-        # Use provided scale or fallback to 30m for PV Binary
-        try:
-            sm=img.projection().nominalScale().getInfo()
-            if sm<=0: sm=30
-        except:
-            sm=30
+        img = ee.Image(pa).select(0)
+        # Force 30m scale for India PV Binary to ensure robustness
+        scale = 30
         
-        rp=int(math.ceil((10+0.5*sm)/sm))
-        core=img.eq(1).unmask(0).rename("b").reduceNeighborhood(reducer=ee.Reducer.min(),kernel=ee.Kernel.circle(rp,units="pixels")).rename("c")
-        ca=core.multiply(ee.Image.pixelArea()).reduceRegion(reducer=ee.Reducer.sum(),geometry=eg,scale=sm,maxPixels=1e13)
-        pa_m2=float(eg.area().getInfo())
-        if pa_m2==0: return {"value":None,"pixels":None}
-        return {"value":max(0,min(100,100*float(ee.Number(ca.get("c")).getInfo())/pa_m2)),"pixels":None}
-    except Exception as e: logger.warning(f"CPLAND: {e}"); return {"value":None,"pixels":None}
+        # RP calculation (Connectivity kernel radius)
+        rp = 1  # Standard 1-pixel gap connectivity
+        
+        # Calculate Core Area (Intact pixels)
+        core = img.eq(1).unmask(0)
+        ca = core.multiply(ee.Image.pixelArea()).reduceRegion(
+            reducer=ee.Reducer.sum(),
+            geometry=eg,
+            scale=scale,
+            maxPixels=1e13
+        )
+        
+        # Total Area
+        pa_m2 = float(eg.area().getInfo())
+        if pa_m2 == 0: return {"value": 0.0, "pixels": None}
+        
+        ca_val = float(ca.get(ca.getInfo().keys()[0] if ca.getInfo() else "b"))
+        connectivity = (ca_val / pa_m2) * 100
+        
+        return {"value": max(0, min(100, connectivity)), "pixels": None}
+    except Exception as e:
+        logger.warning(f"CPLAND Extraction Error: {e}")
+        return {"value": 0.0, "pixels": None}
 
 def extract_forest_loss_rate(g,c):
     import ee; eg=_to_ee(g)

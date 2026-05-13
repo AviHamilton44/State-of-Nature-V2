@@ -232,9 +232,7 @@ def calculate_scorecard(scorecard_data, registry):
         "EII Functional": get_norm("eii_functional"),
         "BII": get_norm("bii"),
         "PDF": get_norm("pdf"),
-        "Aridity Index": get_norm("aridity_index"),
-        "Water Stress": "Coming soon",
-        "Water Quality": "Coming soon"
+        "Aridity Index": get_norm("aridity_index")
     }
 
     # Pillar 3
@@ -247,8 +245,7 @@ def calculate_scorecard(scorecard_data, registry):
     pillar_metrics["Pillar-4: Extinction Risk"] = {
         "Threatened Species": get_norm("threatened_richness"),
         "CERI": get_norm("ceri"),
-        "STAR_T": get_norm("star_t"),
-        "STAR_R": "Coming soon"
+        "STAR_T": get_norm("star_t")
     }
 
     # Pillar 5 (Pressure)
@@ -258,8 +255,7 @@ def calculate_scorecard(scorecard_data, registry):
         "Light Pollution": res_lookup.get("light_pollution", {}).get("site_value", 0),
         "HDI": res_lookup.get("hdi", {}).get("site_value", 0),
         "Day LST": res_lookup.get("lst_day", {}).get("site_value", 0),
-        "Night LST": res_lookup.get("lst_night", {}).get("site_value", 0),
-        "Urban Heat Island": "Coming soon"
+        "Night LST": res_lookup.get("lst_night", {}).get("site_value", 0)
     }
 
     # Calculate Pressure Score (0-10 scale, Higher = Worse)
