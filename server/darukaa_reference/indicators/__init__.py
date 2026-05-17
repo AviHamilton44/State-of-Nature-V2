@@ -483,24 +483,9 @@ def _img_cpland_binary(c):
 def extract_natural_habitat(g,c): return _reduce(_img_natural_habitat(c),g,10)
 def extract_natural_landcover(g,c): return _reduce(_img_natural_landcover(c),g,500)
 
-def extract_cpland(g,c):
-    import ee; eg=_to_ee(g); pa=c.raster_paths.get("pv_binary",_PV)
-    try:
-        img=ee.Image(pa).select(0)
-        # Use provided scale or fallback to 30m for PV Binary
-        try:
-            sm=img.projection().nominalScale().getInfo()
-            if sm<=0: sm=30
-        except:
-            sm=30
-        
-        rp=int(math.ceil((10+0.5*sm)/sm))
-        core=img.eq(1).unmask(0).rename("b").reduceNeighborhood(reducer=ee.Reducer.min(),kernel=ee.Kernel.circle(rp,units="pixels")).rename("c")
-        ca=core.multiply(ee.Image.pixelArea()).reduceRegion(reducer=ee.Reducer.sum(),geometry=eg,scale=sm,maxPixels=1e13)
-        pa_m2=float(eg.area().getInfo())
-        if pa_m2==0: return {"value":None,"pixels":None}
-        return {"value":max(0,min(100,100*float(ee.Number(ca.get("c")).getInfo())/pa_m2)),"pixels":None}
-    except Exception as e: logger.warning(f"CPLAND: {e}"); return {"value":None,"pixels":None}
+def extract_cpland(g, c):
+    from app.services.gee.metrics.cpland import extract_cpland as custom_cpland
+    return custom_cpland(g, c)
 
 def extract_forest_loss_rate(g,c):
     import ee; eg=_to_ee(g)
