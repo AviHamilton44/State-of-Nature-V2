@@ -73,16 +73,28 @@ def extract_cpland(geometry, config=None):
             bestEffort=True
         )
         
+        import math
+        
         total_area_val = total_area_dict.values().get(0)
         cropland_area_val = cropland_area_dict.values().get(0)
         
+        # Safely extract and convert to float, catching any None values
         total_area_ha = float(total_area_val.getInfo() or 0)
         cropland_area_ha = float(cropland_area_val.getInfo() or 0)
         
-        if total_area_ha <= 0:
+        # Check for NaN explicitly
+        if math.isnan(total_area_ha) or total_area_ha <= 0:
+            total_area_ha = 0.0
+            cropland_percent = 0.0
+        elif math.isnan(cropland_area_ha) or cropland_area_ha < 0:
+            cropland_area_ha = 0.0
             cropland_percent = 0.0
         else:
             cropland_percent = (cropland_area_ha / total_area_ha) * 100.0
+            
+        # Final safety check on percentage
+        if math.isnan(cropland_percent):
+            cropland_percent = 0.0
 
         logger.info(f"CPLAND computed: {cropland_percent:.2f}% (Cropland: {cropland_area_ha:.2f}ha / Total: {total_area_ha:.2f}ha)")
 
