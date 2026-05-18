@@ -151,7 +151,7 @@ def calculate_scorecard(scorecard_data, registry):
                 val = float(site_val)
                 # Detect if metric is "higher is better" or "lower is better"
                 hib = True
-                if name in ["forest_loss_rate", "ceri", "star_t", "kba_overlap", "ghm", "light_pollution", "hdi", "lst_day", "lst_night"]:
+                if name in ["forest_loss_rate", "ceri", "star_t", "kba_overlap", "ghm", "light_pollution", "hdi", "lst_day", "lst_night", "threatened_richness", "endemic_richness"]:
                     hib = False
                 
                 if hib:

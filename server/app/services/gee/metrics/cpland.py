@@ -79,22 +79,26 @@ def extract_cpland(geometry, config=None):
         cropland_area_val = cropland_area_dict.values().get(0)
         
         # Safely extract and convert to float, catching any None values
-        total_area_ha = float(total_area_val.getInfo() or 0)
-        cropland_area_ha = float(cropland_area_val.getInfo() or 0)
+        total_area_ha = total_area_val.getInfo()
+        cropland_area_ha = cropland_area_val.getInfo()
+        
+        if total_area_ha is None or cropland_area_ha is None:
+            return {"value": None, "pixels": None}
+            
+        total_area_ha = float(total_area_ha)
+        cropland_area_ha = float(cropland_area_ha)
         
         # Check for NaN explicitly
         if math.isnan(total_area_ha) or total_area_ha <= 0:
-            total_area_ha = 0.0
-            cropland_percent = 0.0
+            return {"value": None, "pixels": None}
         elif math.isnan(cropland_area_ha) or cropland_area_ha < 0:
-            cropland_area_ha = 0.0
-            cropland_percent = 0.0
+            return {"value": None, "pixels": None}
         else:
             cropland_percent = (cropland_area_ha / total_area_ha) * 100.0
             
         # Final safety check on percentage
         if math.isnan(cropland_percent):
-            cropland_percent = 0.0
+            return {"value": None, "pixels": None}
 
         logger.info(f"CPLAND computed: {cropland_percent:.2f}% (Cropland: {cropland_area_ha:.2f}ha / Total: {total_area_ha:.2f}ha)")
 
@@ -113,4 +117,5 @@ def extract_cpland(geometry, config=None):
 
     except Exception as e:
         logger.error(f"Failed to extract CPLAND metric from {asset_id}: {str(e)}")
-        raise e
+        # Do not raise exception, return None to gracefully exclude from score
+        return {"value": None, "pixels": None}
