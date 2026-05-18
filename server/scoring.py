@@ -142,35 +142,10 @@ def calculate_scorecard(scorecard_data, registry):
             intactness_used = t1
             t_ref = row.get("tier1_reference")
         else:
-            # Fallback Logic: If benchmarking fails, use site_val directly to estimate concern
+            # Genuinely no reference of any kind (matches run_pipeline.ipynb exactly)
             cn = None
+            protocol = "— (no reference computable)"
             intactness_used = None
-            t_ref = None
-            
-            if site_val is not None:
-                val = float(site_val)
-                # Detect if metric is "higher is better" or "lower is better"
-                hib = True
-                if name in ["forest_loss_rate", "ceri", "star_t", "kba_overlap", "ghm", "light_pollution", "hdi", "lst_day", "lst_night", "threatened_richness", "endemic_richness"]:
-                    hib = False
-                
-                if hib:
-                    norm = val / 100.0 if val > 1.0 else val
-                    if norm >= 0.85: cn = 1
-                    elif norm >= 0.70: cn = 2
-                    elif norm >= 0.50: cn = 3
-                    elif norm >= 0.30: cn = 4
-                    else: cn = 5
-                else:
-                    # For loss/pressure, lower is better
-                    if val <= 0.5: cn = 1
-                    elif val <= 2.0: cn = 2
-                    elif val <= 5.0: cn = 3
-                    elif val <= 15.0: cn = 4
-                    else: cn = 5
-                protocol = "Fallback (Site-value threshold)"
-            else:
-                protocol = "— (no reference computable)"
 
         print(f"[DEBUG] Indicator: {name}, Value: {site_val}, CN: {cn}, Label: {concern_label(cn)}")
         metric_concerns[name] = {
